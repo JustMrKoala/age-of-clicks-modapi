@@ -1,10 +1,10 @@
 # Build output
-build/
-dist/
+/build/
+/dist/
 *.class
 
 # Downloaded by build.sh
-lib/
+/lib/
 
 # Your own lobby server address (build.sh bakes it into your builds; see AGENTS.md)
 central-server.txt

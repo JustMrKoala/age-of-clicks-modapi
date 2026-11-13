@@ -1,0 +1,17 @@
+# Age of Clicks dedicated server. Copy to server.properties and edit.
+
+# Name players see in the lobby.
+name=My Age of Clicks server
+
+# Scenario folder: built-in ones like scenarios/1936/ or scenarios/WorldWarII/, or your own
+# (copy the scenario folder from the game's scenarios/ next to the server).
+scenario=scenarios/1936/
+
+# Start automatically once this many players have joined...
+min_players=2
+# ...and all of them pressed Ready.
+require_ready=true
+auto_start=true
+
+# Game speed once the match starts: 1, 2, 4, 8 or 16. Change it live with the 'speed' command.
+speed=1

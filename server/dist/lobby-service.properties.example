@@ -1,0 +1,23 @@
+# Age of Clicks central lobby server. Copy to lobby-service.properties and edit.
+
+# Name shown at the top of the in-game lobby browser.
+server_name=Age of Clicks central server
+
+# Public API port (players' games talk to this) and the match ports (one per running lobby,
+# TCP and UDP). Forward all of them on the router: python3 upnp-ports.py open
+port=54600
+pool_first_port=54601
+pool_size=2
+
+# Scenarios players may choose: "all" is every map that ships with the game (players all have
+# those). Add folders copied into scenarios/ here, e.g. all,scenarios/MyMap/ - but then every
+# player needs that map too, or the game sends them back to the menu.
+scenarios=all
+
+max_players=8
+# Memory for each running match (the machine needs pool_size x this, plus ~200m).
+memory_per_match=800m
+# A lobby nobody joins (or everyone leaves before the start) closes after this many seconds.
+idle_timeout_seconds=300
+# Each address may create one lobby per this many seconds.
+create_cooldown_seconds=30
