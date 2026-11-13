@@ -1,0 +1,22 @@
+# Build output
+build/
+dist/
+*.class
+
+# Downloaded by build.sh
+lib/
+
+# Your own lobby server address (build.sh bakes it into your builds; see AGENTS.md)
+central-server.txt
+
+# Created when the loader runs from the source tree
+mods/aoc-loader/
+mods/*/config.properties
+*.log
+
+# Editors and OS
+.idea/
+.vscode/
+*.iml
+.DS_Store
+Thumbs.db
