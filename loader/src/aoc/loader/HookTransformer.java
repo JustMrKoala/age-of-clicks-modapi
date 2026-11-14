@@ -130,6 +130,22 @@ final class HookTransformer implements ClassFileTransformer {
                     if (MAP.equals(name) && m.equals("calculateZoomThresholds") && desc.equals("()V")) {
                         return new BeforeReturn(mv, Opcodes.RETURN, "afterZoomThresholds", "(Ljava/lang/Object;)V", true);
                     }
+                    if (MAP.equals(name) && m.equals("constrainCamera") && desc.equals("()V")) {
+                        // if (Hooks.constrainCamera(this)) return;  -- this is where the game really stops the camera
+                        return new MethodVisitor(Opcodes.ASM9, mv) {
+                            @Override
+                            public void visitCode() {
+                                super.visitCode();
+                                org.objectweb.asm.Label go = new org.objectweb.asm.Label();
+                                super.visitVarInsn(Opcodes.ALOAD, 0);
+                                super.visitMethodInsn(Opcodes.INVOKESTATIC, HOOKS, "constrainCamera", "(Ljava/lang/Object;)Z", false);
+                                super.visitJumpInsn(Opcodes.IFEQ, go);
+                                super.visitInsn(Opcodes.RETURN);
+                                super.visitLabel(go);
+                                super.visitFrame(Opcodes.F_SAME, 0, null, 0, null);
+                            }
+                        };
+                    }
                     if (MAP.equals(name) && m.equals("updateCameraBounds") && desc.equals("()V")) {
                         return new MethodVisitor(Opcodes.ASM9, mv) {
                             @Override

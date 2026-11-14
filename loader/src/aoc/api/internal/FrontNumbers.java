@@ -8,13 +8,16 @@ import com.badlogic.gdx.graphics.g2d.BitmapFont;
 import com.badlogic.gdx.graphics.g2d.GlyphLayout;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 import com.badlogic.gdx.math.Matrix4;
+import com.badlogic.gdx.utils.FloatArray;
+import ru.ius.david.cgs.NativeFloatGrid;
 import ru.ius.david.cgs.NativeIntGrid;
 import ru.ius.david.cgs.WarManager;
 import ru.ius.david.cgs.game.CountryState;
 import ru.ius.david.cgs.game.GameManager;
 import ru.ius.david.cgs.units.FrontlineDecor;
+import ru.ius.david.cgs.units.MilitaryUnit;
+import ru.ius.david.cgs.units.UnitManager;
 
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -22,20 +25,23 @@ import java.util.Map;
 /**
  * Game Improvements: army numbers along the fronts. For every pair of countries at war with a
  * front on screen, each side's army on that front is written on its own land next to the front,
- * turned along it. In classic combat the game shows army flags but no numbers; a country's army
- * (infantry + artillery + tanks) is split over its fronts by how many of its flags stand on each.
+ * turned along it.
  *
- * <p>Where the front is comes from the flags; which way it runs and where each side's land lies
- * comes from the map itself (who holds the land around the front), because both sides' flags stand
- * on the same line and say little about its direction.
+ * <p>Everything about the place comes from the map itself: the visible part of the map is sampled
+ * for who holds the land (the occupier where the game tracks one, else the owner), a front is where
+ * land of two countries at war touches, and each side's land around it says which way the front
+ * runs and where its number belongs. That works in both combat modes: the game's frontline flags
+ * (classic combat) are left out wherever divisions hold the line, so they cannot be relied on.
+ *
+ * <p>The number is the country's army (infantry + artillery + tanks) times this front's share of
+ * its forces: its frontline flags facing that enemy plus its divisions sent against that enemy.
  */
 final class FrontNumbers {
-    /** The front between two countries (a before b by colour key). */
+    /** The visible front between two countries (a before b by colour key). */
     private static final class Front {
         final int a, b;
-        /** On-screen flags of both sides, in map pixels. */
-        final List<float[]> flags = new ArrayList<>();
-        int flagsA, flagsB;
+        /** Samples where the two lands touch, as screen x, y pairs. */
+        final FloatArray points = new FloatArray();
 
         Front(int a, int b) {
             this.a = a;
@@ -56,8 +62,11 @@ final class FrontNumbers {
     private final Matrix4 projection = new Matrix4(), transform = new Matrix4(), identity = new Matrix4();
     private final Color ink = new Color();
     private final float[] point = new float[2], other = new float[2];
-    /** Sums over the land of side a and side b around a front: x, y, cells. */
-    private final float[] landA = new float[3], landB = new float[3];
+    private final Map<Long, Boolean> atWar = new HashMap<>();
+    /** Who holds each sample of the visible map this frame (-1 sea or outside). */
+    private int[] holders = new int[0];
+    private int cols, rows;
+    private float step, top, originX, originY, pxPerMap;
     private SpriteBatch batch;
     /** Self-test: the numbers of the last frame, as text. */
     static String debug = "";
@@ -66,71 +75,81 @@ final class FrontNumbers {
         GameHud.Layout hud = GameHud.layout();
         GameManager gm = GameManager.getInstance();
         WarManager wm = gm == null ? null : gm.getWarManager();
-        FrontlineDecor decor = wm == null ? null : wm.getFrontlineDecor();
         NativeIntGrid owners = wm == null ? null : wm.getOwnershipGrid();
-        if (!hud.inGame() || decor == null || decor.isEmpty() || owners == null || !gm.isClassicCombat()) {
+        if (!hud.inGame() || owners == null || wm.getActiveWars() == null || wm.getActiveWars().isEmpty()) {
             shown.clear();
+            if (UiSelfTest.active) debug = "no map or no wars";
             return;
         }
         // A pop-up or hidden interface: nothing is drawn, but the numbers keep their place for afterwards.
-        if (hud.hidden() || hud.modal()) return;
-        NativeIntGrid control = wm.getControlOwner();
+        if (hud.hidden() || hud.modal()) {
+            if (UiSelfTest.active) debug = hud.modal() ? "a dialog or full-screen menu is open" : "interface hidden";
+            return;
+        }
         float sw = Gdx.graphics.getWidth(), sh = Gdx.graphics.getHeight();
         // Screen pixels per map pixel under the player's camera (no rotation, same scale both ways).
         if (!Hooks.mapToScreen(0, 0, point) || !Hooks.mapToScreen(1000, 0, other)) return;
-        float pxPerMap = Math.abs(other[0] - point[0]) / 1000f;
+        pxPerMap = Math.abs(other[0] - point[0]) / 1000f;
         if (pxPerMap <= 0) return;
+        originX = point[0];
+        originY = point[1];
+        top = hud.top();
 
-        Map<Long, Front> fronts = new HashMap<>();
-        Map<Integer, Integer> flagsOf = new HashMap<>();
-        for (FrontlineDecor.Marker m : decor.getMarkers()) {
-            // Thinned-out flags (zoomed out) still mark the front; only dead ones do not.
-            if (!m.alive || m.enemyColorKey == m.ownerColorKey || !wm.areAtWar(m.ownerColorKey, m.enemyColorKey)) continue;
-            flagsOf.merge(m.ownerColorKey, 1, Integer::sum);
-            int a = Math.min(m.ownerColorKey, m.enemyColorKey), b = Math.max(m.ownerColorKey, m.enemyColorKey);
-            Front f = fronts.computeIfAbsent(key(a, b), k -> new Front(a, b));
-            if (m.ownerColorKey == a) f.flagsA++;
-            else f.flagsB++;
-            if (!Hooks.mapToScreen(m.x, m.y, point)) continue;
-            if (point[0] < 0 || point[0] > sw || point[1] < hud.top() || point[1] > hud.bottom()) continue;
-            f.flags.add(new float[]{m.x, m.y, point[0], point[1]});
-        }
+        sample(wm, owners, sw, sh, hud.bottom());
+        Map<Long, Front> fronts = findFronts(wm);
+        Map<Long, Integer> forces = new HashMap<>(); // owner + enemy -> flags and divisions facing that enemy
+        Map<Integer, Integer> forcesOf = new HashMap<>();
+        countForces(wm, forces, forcesOf);
 
         for (Shown s : shown.values()) s.seen = false;
-        StringBuilder log = UiSelfTest.active ? new StringBuilder() : null;
+        StringBuilder log = UiSelfTest.active ? new StringBuilder("fronts on screen " + fronts.size() + ": ") : null;
         float ease = Math.min(1f, delta * 4f);
         for (Front f : fronts.values()) {
-            if (f.flags.isEmpty()) continue;
-            // One stretch of front: the flags around the one nearest the middle of the screen.
-            float[] seed = f.flags.get(0);
-            for (float[] p : f.flags) {
-                if (dist2(p[2], p[3], sw / 2, sh / 2) < dist2(seed[2], seed[3], sw / 2, sh / 2)) seed = p;
+            // One stretch of front: the touching points around the one nearest the middle of the screen.
+            float seedX = f.points.get(0), seedY = f.points.get(1);
+            for (int i = 0; i < f.points.size; i += 2) {
+                if (dist2(f.points.get(i), f.points.get(i + 1), sw / 2, sh / 2) < dist2(seedX, seedY, sw / 2, sh / 2)) {
+                    seedX = f.points.get(i);
+                    seedY = f.points.get(i + 1);
+                }
             }
             float reach = sh * 0.3f, fx = 0, fy = 0;
             int n = 0;
-            for (float[] p : f.flags) {
-                if (dist2(p[2], p[3], seed[2], seed[3]) > reach * reach) continue;
-                fx += p[0];
-                fy += p[1];
+            for (int i = 0; i < f.points.size; i += 2) {
+                if (dist2(f.points.get(i), f.points.get(i + 1), seedX, seedY) > reach * reach) continue;
+                fx += f.points.get(i);
+                fy += f.points.get(i + 1);
                 n++;
             }
             fx /= n;
             fy /= n;
 
-            // Whose land lies where around that stretch.
-            // A wide look, so a bulge in the line does not turn the numbers: they follow the front as a whole.
-            float radius = Math.max(12f, sh * 0.30f / pxPerMap);
-            survey(owners, control, fx, fy, radius, f.a, f.b);
-            if (landA[2] < 1 && landB[2] < 1) continue;
-            float ax = landA[2] > 0 ? landA[0] / landA[2] : fx, ay = landA[2] > 0 ? landA[1] / landA[2] : fy;
-            float bx = landB[2] > 0 ? landB[0] / landB[2] : fx, by = landB[2] > 0 ? landB[1] / landB[2] : fy;
-            if (landA[2] < 1) { // one side holds nothing here: mirror the other through the front
-                ax = 2 * fx - bx;
-                ay = 2 * fy - by;
-            } else if (landB[2] < 1) {
-                bx = 2 * fx - ax;
-                by = 2 * fy - ay;
+            // Whose land lies where around that stretch (a wide look, so a bulge does not turn the numbers).
+            float radius = sh * 0.30f;
+            float ax = 0, ay = 0, bx = 0, by = 0;
+            int na = 0, nb = 0;
+            for (int r = 0; r < rows; r++) {
+                for (int c = 0; c < cols; c++) {
+                    int h = holders[r * cols + c];
+                    if (h != f.a && h != f.b) continue;
+                    float x = c * step, y = top + r * step;
+                    if (dist2(x, y, fx, fy) > radius * radius) continue;
+                    if (h == f.a) {
+                        ax += x;
+                        ay += y;
+                        na++;
+                    } else {
+                        bx += x;
+                        by += y;
+                        nb++;
+                    }
+                }
             }
+            if (na == 0 || nb == 0) continue;
+            ax /= na;
+            ay /= na;
+            bx /= nb;
+            by /= nb;
             float dx = bx - ax, dy = by - ay;
             float len = (float) Math.sqrt(dx * dx + dy * dy);
             if (len < 0.5f) {
@@ -140,14 +159,13 @@ final class FrontNumbers {
             }
             dx /= len;
             dy /= len;
-            // Both numbers at the same distance from the line between the two lands, never on top of each other.
-            float mx = (ax + bx) / 2, my = (ay + by) / 2;
-            float apart = Math.max(len / 2, sh * 0.11f / pxPerMap);
+            // Both numbers at the same distance from the front, never on top of each other.
+            float apart = Math.max(len / 2, sh * 0.11f);
             float angle = (float) Math.toDegrees(Math.atan2(dx, -dy));
             if (angle > 90) angle -= 180;
             if (angle < -90) angle += 180;
-            place(wm, f.a, f.b, f.flagsA, flagsOf, mx, my, -dx, -dy, apart, angle, owners, control, ease, delta, log);
-            place(wm, f.b, f.a, f.flagsB, flagsOf, mx, my, dx, dy, apart, angle, owners, control, ease, delta, log);
+            place(wm, f.a, f.b, forces, forcesOf, fx, fy, -dx, -dy, apart, angle, ease, delta, log);
+            place(wm, f.b, f.a, forces, forcesOf, fx, fy, dx, dy, apart, angle, ease, delta, log);
         }
         if (log != null) debug = log.toString();
         shown.values().removeIf(s -> {
@@ -157,43 +175,130 @@ final class FrontNumbers {
         if (!shown.isEmpty()) draw(hud, sw, sh);
     }
 
-    /** One side's number: on its own land, {@code apart} from the middle of the front along {@code dx, dy}. */
-    private void place(WarManager wm, int owner, int enemy, int flags, Map<Integer, Integer> flagsOf, float mx, float my,
-                       float dx, float dy, float apart, float angle, NativeIntGrid owners, NativeIntGrid control,
-                       float ease, float delta, StringBuilder log) {
+    /** Reads who holds the map under a grid of screen points between the top bar and the dock. */
+    private void sample(WarManager wm, NativeIntGrid owners, float sw, float sh, float bottom) {
+        step = Math.max(8f, sh / 36f);
+        cols = (int) (sw / step) + 1;
+        rows = (int) ((bottom - top) / step) + 1;
+        if (holders.length < cols * rows) holders = new int[cols * rows];
+        NativeIntGrid control = wm.getControlOwner();
+        NativeFloatGrid strength = wm.getControlGrid();
+        int w = owners.getWidth(), h = owners.getHeight();
+        for (int r = 0; r < rows; r++) {
+            int my = Math.round((top + r * step - originY) / pxPerMap);
+            for (int c = 0; c < cols; c++) {
+                int mx = Math.round((c * step - originX) / pxPerMap);
+                int holder = -1;
+                if (mx >= 0 && my >= 0 && mx < w && my < h) {
+                    holder = owners.at(mx, my);
+                    // Occupied land counts for the occupier (0.45 is the game's own threshold for "held").
+                    if (holder != -1 && control != null && strength != null) {
+                        int occupier = control.at(mx, my);
+                        if (occupier != -1 && occupier != holder && strength.at(mx, my) >= 0.45f) holder = occupier;
+                    }
+                }
+                holders[r * cols + c] = holder;
+            }
+        }
+    }
+
+    /** Fronts: where neighbouring samples are held by two countries at war. */
+    private Map<Long, Front> findFronts(WarManager wm) {
+        atWar.clear();
+        Map<Long, Front> fronts = new HashMap<>();
+        for (int r = 0; r < rows; r++) {
+            for (int c = 0; c < cols; c++) {
+                int h = holders[r * cols + c];
+                if (h == -1) continue;
+                for (int side = 0; side < 2; side++) {
+                    int c2 = side == 0 ? c + 1 : c, r2 = side == 0 ? r : r + 1;
+                    if (c2 >= cols || r2 >= rows) continue;
+                    int o = holders[r2 * cols + c2];
+                    if (o == -1 || o == h) continue;
+                    int a = Math.min(h, o), b = Math.max(h, o);
+                    long k = key(a, b);
+                    if (!atWar.computeIfAbsent(k, x -> wm.areAtWar(a, b))) continue;
+                    Front f = fronts.computeIfAbsent(k, x -> new Front(a, b));
+                    f.points.add((c + c2) * step / 2f, top + (r + r2) * step / 2f);
+                }
+            }
+        }
+        return fronts;
+    }
+
+    /** How many frontline flags and divisions each country has against each enemy, and in all. */
+    private static void countForces(WarManager wm, Map<Long, Integer> forces, Map<Integer, Integer> forcesOf) {
+        FrontlineDecor decor = wm.getFrontlineDecor();
+        if (decor != null) {
+            for (FrontlineDecor.Marker m : decor.getMarkers()) {
+                if (!m.alive || m.enemyColorKey == m.ownerColorKey || !wm.areAtWar(m.ownerColorKey, m.enemyColorKey)) continue;
+                forces.merge(key(m.ownerColorKey, m.enemyColorKey), 1, Integer::sum);
+                forcesOf.merge(m.ownerColorKey, 1, Integer::sum);
+            }
+        }
+        UnitManager units = wm.getUnitManager();
+        if (units == null || units.isEmpty()) return;
+        List<MilitaryUnit> list = units.getUnits();
+        for (int i = 0; i < list.size(); i++) {
+            MilitaryUnit u = list.get(i);
+            if (u == null || u.state == MilitaryUnit.STATE_DEAD) continue;
+            if (u.targetEnemyColor == -1 || u.targetEnemyColor == u.ownerColorKey || !wm.areAtWar(u.ownerColorKey, u.targetEnemyColor)) continue;
+            forces.merge(key(u.ownerColorKey, u.targetEnemyColor), 1, Integer::sum);
+            forcesOf.merge(u.ownerColorKey, 1, Integer::sum);
+        }
+    }
+
+    /** One side's number: on its own land, {@code apart} screen pixels from the front along {@code dx, dy}. */
+    private void place(WarManager wm, int owner, int enemy, Map<Long, Integer> forces, Map<Integer, Integer> forcesOf,
+                       float fx, float fy, float dx, float dy, float apart, float angle, float ease, float delta, StringBuilder log) {
         CountryState state = wm.stateOf(owner);
         if (state == null) return;
         long army = Math.max(0, state.getInfantry()) + Math.max(0, state.getArtillery()) + Math.max(0, state.getTanks());
-        int all = flagsOf.getOrDefault(owner, 0);
-        // No flags of its own on this front (thin lines, a siege): count it as one front among the others.
-        float share = flags > 0 ? flags / (float) all : 1f / (1 + all);
+        int here = forces.getOrDefault(key(owner, enemy), 0), all = forcesOf.getOrDefault(owner, 0);
+        // Nothing of its own sent to this front: count it as one front among the others.
+        float share = here > 0 ? here / (float) all : 1f / (1 + all);
         float troops = army * share;
         if (troops < 1) return;
-        // The first spot along the way that really is this side's land.
-        float x = mx + dx * apart, y = my + dy * apart;
-        for (float step : new float[]{1f, 1.4f, 0.7f, 1.9f, 0.45f}) {
-            float tx = mx + dx * apart * step, ty = my + dy * apart * step;
-            if (holder(owners, control, Math.round(tx), Math.round(ty)) == owner) {
-                x = tx;
-                y = ty;
-                break;
+        // The first spot that really is this side's land and clear of the game's interface: straight
+        // back from the front first, then further along the front to either side.
+        GameHud.Layout hud = GameHud.layout();
+        float sh = Gdx.graphics.getHeight(), sw = Gdx.graphics.getWidth(), room = sh * 0.06f;
+        float x = fx + dx * apart, y = fy + dy * apart;
+        boolean own = false, free = false;
+        search:
+        for (float along : new float[]{0f, 0.15f, -0.15f, 0.3f, -0.3f}) {
+            for (float t : new float[]{1f, 1.4f, 0.7f, 1.9f, 0.45f}) {
+                float tx = fx + dx * apart * t - dy * along * sh, ty = fy + dy * apart * t + dx * along * sh;
+                int c = Math.round(tx / step), r = Math.round((ty - top) / step);
+                if (c < 0 || r < 0 || c >= cols || r >= rows || holders[r * cols + c] != owner) continue;
+                boolean clear = tx > room && tx < sw - room && ty > hud.top() + room && ty < hud.bottom() - room
+                        && covered(hud, tx - room, ty - room, 2 * room) == null;
+                if (!own || clear) {
+                    x = tx;
+                    y = ty;
+                    own = true;
+                }
+                if (clear) {
+                    free = true;
+                    break search;
+                }
             }
         }
-        if (log != null) log.append(state.getName()).append(": army ").append(army).append(", flags ").append(flags).append('/').append(all)
-                .append(" -> ").append(Math.round(troops)).append(" at ").append(Math.round(x)).append(',').append(Math.round(y))
-                .append(holder(owners, control, Math.round(x), Math.round(y)) == owner ? " (own land)" : " (NOT own land)")
-                .append(" angle ").append(Math.round(angle)).append("; ");
+        if (log != null) log.append(state.getName()).append(": army ").append(army).append(", forces ").append(here).append('/').append(all)
+                .append(" -> ").append(Math.round(troops)).append(" at screen ").append(Math.round(x)).append(',').append(Math.round(y))
+                .append(own ? " (own land)" : " (NOT own land)").append(free ? "" : " (no free spot)").append(" angle ").append(Math.round(angle)).append("; ");
+        float mapX = (x - originX) / pxPerMap, mapY = (y - originY) / pxPerMap;
         Shown s = shown.get(key(owner, enemy));
         if (s == null) {
             s = new Shown();
-            s.mapX = x;
-            s.mapY = y;
+            s.mapX = mapX;
+            s.mapY = mapY;
             s.angle = angle;
             s.troops = troops;
             shown.put(key(owner, enemy), s);
         } else {
-            s.mapX += (x - s.mapX) * ease;
-            s.mapY += (y - s.mapY) * ease;
+            s.mapX += (mapX - s.mapX) * ease;
+            s.mapY += (mapY - s.mapY) * ease;
             float turn = angle - s.angle;
             if (turn > 90) turn -= 180;
             if (turn < -90) turn += 180;
@@ -202,39 +307,9 @@ final class FrontNumbers {
             if (s.angle < -90) s.angle += 180;
             s.troops += (troops - s.troops) * Math.min(1f, delta * 2f);
         }
-        if (Hooks.mapToScreen(s.mapX, s.mapY, point)) {
-            s.x = point[0];
-            s.y = point[1];
-            s.seen = true;
-        }
-    }
-
-    /** Who holds a map cell: the occupier where the game tracks one, else the owner. */
-    private static int holder(NativeIntGrid owners, NativeIntGrid control, int x, int y) {
-        if (x < 0 || y < 0 || x >= owners.getWidth() || y >= owners.getHeight()) return -1;
-        if (control != null && x < control.getWidth() && y < control.getHeight()) {
-            int c = control.at(x, y);
-            if (c > 0) return c;
-        }
-        return owners.at(x, y);
-    }
-
-    /** Sums the cells each side holds in a disc around the front into {@link #landA} and {@link #landB}. */
-    private void survey(NativeIntGrid owners, NativeIntGrid control, float cx, float cy, float radius, int a, int b) {
-        landA[0] = landA[1] = landA[2] = 0;
-        landB[0] = landB[1] = landB[2] = 0;
-        float step = Math.max(1f, radius / 18f);
-        for (float y = -radius; y <= radius; y += step) {
-            for (float x = -radius; x <= radius; x += step) {
-                if (x * x + y * y > radius * radius) continue;
-                int h = holder(owners, control, Math.round(cx + x), Math.round(cy + y));
-                float[] land = h == a ? landA : h == b ? landB : null;
-                if (land == null) continue;
-                land[0] += cx + x;
-                land[1] += cy + y;
-                land[2]++;
-            }
-        }
+        s.x = originX + s.mapX * pxPerMap;
+        s.y = originY + s.mapY * pxPerMap;
+        s.seen = true;
     }
 
     private void draw(GameHud.Layout hud, float sw, float sh) {
@@ -261,14 +336,9 @@ final class FrontNumbers {
                 String text = String.format(java.util.Locale.GERMANY, "%,d", Math.round((double) s.troops));
                 layout.setText(font, text);
                 float w = layout.width, h = Math.abs(layout.height), reach = Math.max(w, h) / 2f;
-                if (UiSelfTest.active) {
-                    String by = "";
-                    for (GameHud.Block b : hud.blocks()) {
-                        if (!b.what().equals("top bar") && !b.what().equals("dock") && b.hits(s.x - reach, s.y - reach, 2 * reach, 2 * reach, 0)) by += b + " ";
-                    }
-                    debug += "[draw " + text + " at " + Math.round(s.x) + "," + Math.round(s.y) + " alpha " + s.alpha + " covered by: " + by + "] ";
-                }
-                if (s.x < -reach || s.x > sw + reach || covered(hud, s.x - reach, s.y - reach, 2 * reach)) continue;
+                String by = covered(hud, s.x - reach, s.y - reach, 2 * reach);
+                if (UiSelfTest.active) debug += "[draw " + text + " at " + Math.round(s.x) + "," + Math.round(s.y) + " alpha " + s.alpha + (by == null ? "" : " HIDDEN by " + by) + "] ";
+                if (s.x < -reach || s.x > sw + reach || by != null) continue;
                 transform.idt().translate(s.x, s.y, 0).rotate(0, 0, 1, s.angle);
                 batch.setTransformMatrix(transform);
                 float x = -w / 2f, y = -h / 2f;
@@ -291,13 +361,13 @@ final class FrontNumbers {
         }
     }
 
-    /** True when the square touches anything of the game's interface (panels, HUD buttons, notices). */
-    private static boolean covered(GameHud.Layout hud, float x, float y, float size) {
+    /** What of the game's interface (panels, HUD buttons, notices) the square touches, or null. */
+    private static String covered(GameHud.Layout hud, float x, float y, float size) {
         for (GameHud.Block b : hud.blocks()) {
             if (b.what().equals("top bar") || b.what().equals("dock")) continue;
-            if (b.hits(x, y, size, size, 0)) return true;
+            if (b.hits(x, y, size, size, 0)) return b.what();
         }
-        return false;
+        return null;
     }
 
     private static float dist2(float x1, float y1, float x2, float y2) { return (x1 - x2) * (x1 - x2) + (y1 - y2) * (y1 - y2); }

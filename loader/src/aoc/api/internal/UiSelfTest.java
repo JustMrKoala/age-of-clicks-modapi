@@ -84,6 +84,7 @@ final class UiSelfTest {
             return;
         }
         if (map == null) return;
+        edgeCheck();
         at(3, 4f, () -> {
             ModManager.systemUi().toast("Mod notice: this must sit under the game's notices", 30);
             map.getInGameHud().showToast("Game notice from the self-test");
@@ -188,6 +189,33 @@ final class UiSelfTest {
         } catch (ReflectiveOperationException e) {
             Log.error("UITEST could not move the camera", e);
             return true;
+        }
+    }
+
+    private int edgeStep;
+    private float edgeBackX, edgeBackY;
+
+    /**
+     * Pushes the camera far past the left and top edges of the map for a moment and logs where the
+     * game lets it rest: with "Scroll past the edges" it must end beyond the game's own limit.
+     */
+    private void edgeCheck() {
+        com.badlogic.gdx.graphics.OrthographicCamera cam = Hooks.camera();
+        if (cam == null) return;
+        if (edgeStep == 0 && clock > 5f) {
+            edgeBackX = cam.position.x;
+            edgeBackY = cam.position.y;
+            cam.position.x = -100000;
+            cam.position.y = -100000;
+            edgeStep = 1;
+        } else if (edgeStep == 1 && clock > 5.6f) {
+            float viewW = cam.viewportWidth * cam.zoom, viewH = cam.viewportHeight * cam.zoom;
+            Log.info(String.format(java.util.Locale.ROOT, "UITEST edge: camera rests at %.0f,%.0f; the game's own limit is %.0f,%.0f (view %.0fx%.0f): %s",
+                    cam.position.x, cam.position.y, viewW / 2, viewH / 2, viewW, viewH,
+                    cam.position.x < viewW / 2 - 1 && cam.position.y < viewH / 2 - 1 ? "PAST the edges" : "stopped at the edges"));
+            cam.position.x = edgeBackX;
+            cam.position.y = edgeBackY;
+            edgeStep = 2;
         }
     }
 

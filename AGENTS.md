@@ -101,22 +101,24 @@ classes as they load:
   `mods/improvements/config.properties`), one toggle per improvement. Add new ones there.
 - Zoom Out (owner's request 2026-11-14) is a toggle here since loader 0.7.0, no longer `mods/zoomout`;
   `ModManager.discoverMods` deletes a leftover `mods/zoomout.jar` (both would set the camera limits).
-- `FrontNumbers`: per pair of countries at war. The flags of `WarManager.getFrontlineDecor()`
-  (classic combat only; `ownerColorKey`/`enemyColorKey`, map pixels y down = ownership grid cells)
-  only say WHERE the front is: the on-screen flags around the one nearest the screen centre.
-  Direction and sides come from the land: `survey` sums who holds the cells in a disc of 30% of
-  the screen height around that point (`getControlOwner()` where > 0, else `getOwnershipGrid()`);
-  the line between the two lands' centres is the normal, both numbers sit along it at least 11%
-  of the screen height from the middle, on a cell the side really holds, turned along the front.
-  The first version took the direction from both sides' flag centres: they stand on the same line,
-  so in a bulge the numbers turned 90 degrees and landed in third countries (owner's screenshot),
-  and it needed visible flags of BOTH sides, so numbers went missing. Now one side's flags are
-  enough (a side without flags there counts as one more front), thinned flags count, and a
-  pop-up no longer resets the fade. Number = infantry + artillery + tanks (`CountryState`, plain
-  units) x this front's share of the country's flags. Drawn after the frame: scissored to the band
-  between top bar and dock, skipped where it would touch a HUD element or panel (the game's
-  battle bubbles are map things and can still sit under a number).
+- `FrontNumbers` (third version): everything about the place comes from the map. The visible map
+  is sampled on a screen grid (step = screen height / 36) for who holds the land: the owner
+  (`getOwnershipGrid()`), or the occupier (`getControlOwner()` != -1 with `getControlGrid()` >= 0.45,
+  the game's own threshold). A front is where neighbouring samples belong to two countries with
+  `areAtWar`. The touching points around the one nearest the screen centre give the front's place;
+  the centres of both lands within 30% of the screen height give the normal; both numbers sit along
+  it at least 11% of the screen height from the front, on a sample the side holds and clear of the
+  HUD (it tries further back and along the front before giving up).
+  History: v1 took direction from both sides' flag centres (same line: numbers turned 90 degrees in
+  a bulge). v2 anchored on the flags of `getFrontlineDecor()`, but `followFrontSide` skips every
+  post a division holds (`divisionHoldsPost`), and divisions exist only outside classic combat, so
+  in division games most numbers were missing (owner's screenshots). Do not anchor on flags.
+  Number = infantry + artillery + tanks (`CountryState`) x share, share = (flags facing that enemy +
+  divisions with `targetEnemyColor` = that enemy) / all of the country's; nothing counted = 1/(1+all).
+  Drawn after the frame, scissored to the band between top bar and dock.
   `frontZoom=<zoom>` in the UI self-test puts the camera on the player's front.
+- Map edges: see "Map camera". The UI self-test logs `UITEST edge` (camera pushed past the top left
+  corner must rest beyond the game's own limit).
 - Performance, measured 2026-11-14 with Flight Recorder (Modern World save, x16): the game's heavy
   work (WarManager peace/naval/encirclement, SDF borders, AI) already runs on background threads;
   on the render thread 46% went to OUR replay `Recorder.writeFrame` (a full grid scan every 3 game
@@ -152,6 +154,11 @@ classes as they load:
   Mods window.
 
 ### Map camera
+The game stops the camera in `MapScreen.constrainCamera()`: it sets `camera.position` itself and
+pins it to the middle when the view is wider than the map. `updateCameraBounds()` only clamps
+`targetCameraPosition`. The loader used to hook only the latter, so the edge margin never worked;
+`Hooks.constrainCamera` now runs at the start of `constrainCamera` and returns true (skipping the
+game's code) when a margin is set, except on maps with `infiniteScrollX`.
 `MapScreen.maxZoom` is the zoom out cap (camera zoom, larger = further out), computed in
 `calculateZoomThresholds()`; `updateCameraBounds()` keeps the view in the map with two
 `MathUtils.clamp` calls. Hooked as `Hooks.afterZoomThresholds`/`clampCamera` for `aoc.api.MapCamera`.

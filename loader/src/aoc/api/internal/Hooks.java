@@ -105,6 +105,71 @@ public final class Hooks {
         return value < min ? min : (value > max ? max : value);
     }
 
+    private static java.lang.reflect.Field camBounds, camVelocity, camInertia, camInfinite;
+    private static java.lang.reflect.Method camUpdateBounds;
+    private static boolean constrainFailed;
+
+    /**
+     * Start of {@code MapScreen.constrainCamera()}, where the game stops the camera at the map's edges
+     * (it sets the position itself; {@code updateCameraBounds} above only moves the target). With an
+     * edge margin the camera may go that share of the view past each edge, also when the whole map is
+     * narrower than the view (the game then pins it to the middle). Returns true when it did the job,
+     * so the game's own limits are skipped. Maps that wrap around horizontally keep the game's code.
+     */
+    public static boolean constrainCamera(Object screen) {
+        float m = edgeMargin;
+        if (m <= 0f || constrainFailed || ModManager.multiplayerActive()) return false;
+        try {
+            ru.ius.david.cgs.MapScreen map = (ru.ius.david.cgs.MapScreen) screen;
+            if (camBounds == null) {
+                Class<?> c = ru.ius.david.cgs.MapScreen.class;
+                camInfinite = c.getDeclaredField("infiniteScrollX");
+                camVelocity = c.getDeclaredField("cameraVelocity");
+                camInertia = c.getDeclaredField("cameraInertia");
+                camUpdateBounds = c.getDeclaredMethod("updateCameraBounds");
+                mapCamera = c.getDeclaredField("camera");
+                java.lang.reflect.Field b = c.getDeclaredField("worldBounds");
+                for (java.lang.reflect.AccessibleObject o : new java.lang.reflect.AccessibleObject[]{camInfinite, camVelocity, camInertia, camUpdateBounds, mapCamera, b}) o.setAccessible(true);
+                camBounds = b;
+            }
+            if (camInfinite.getBoolean(map)) return false;
+            com.badlogic.gdx.graphics.OrthographicCamera cam = (com.badlogic.gdx.graphics.OrthographicCamera) mapCamera.get(map);
+            com.badlogic.gdx.math.Rectangle world = (com.badlogic.gdx.math.Rectangle) camBounds.get(map);
+            if (cam == null || world == null || world.width <= 0) return false;
+            com.badlogic.gdx.math.Vector2 velocity = (com.badlogic.gdx.math.Vector2) camVelocity.get(map);
+            com.badlogic.gdx.math.Vector2 inertia = (com.badlogic.gdx.math.Vector2) camInertia.get(map);
+            camUpdateBounds.invoke(map);
+            float viewW = cam.viewportWidth * cam.zoom, viewH = cam.viewportHeight * cam.zoom;
+            float extra = Math.min(viewW, viewH) * m;
+            // The game's range (the middle of the map when the view is wider than the map), widened.
+            float minX = Math.min(viewW / 2f, world.width / 2f) - extra, maxX = Math.max(world.width - viewW / 2f, world.width / 2f) + extra;
+            float minY = Math.min(viewH / 2f, world.height / 2f) - extra, maxY = Math.max(world.height - viewH / 2f, world.height / 2f) + extra;
+            if (cam.position.x < minX) {
+                cam.position.x = minX;
+                velocity.x = Math.max(0f, velocity.x);
+                inertia.x = Math.max(0f, inertia.x);
+            } else if (cam.position.x > maxX) {
+                cam.position.x = maxX;
+                velocity.x = Math.min(0f, velocity.x);
+                inertia.x = Math.min(0f, inertia.x);
+            }
+            if (cam.position.y < minY) {
+                cam.position.y = minY;
+                velocity.y = Math.max(0f, velocity.y);
+                inertia.y = Math.max(0f, inertia.y);
+            } else if (cam.position.y > maxY) {
+                cam.position.y = maxY;
+                velocity.y = Math.min(0f, velocity.y);
+                inertia.y = Math.min(0f, inertia.y);
+            }
+            return true;
+        } catch (Throwable t) {
+            constrainFailed = true;
+            Log.error("Could not widen the camera's limits; the game's own limits apply", t);
+            return false;
+        }
+    }
+
     /**
      * Draws the game's own map (no interface) as seen from another camera, into the bound
      * framebuffer at the window's size. {@code x}/{@code y} are map pixels (y down),

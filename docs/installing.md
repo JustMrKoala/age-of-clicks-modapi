@@ -3,7 +3,7 @@
 ## Install
 
 1. Close Age of Clicks.
-2. Run **AgeOfClicks-ModAPI-Setup-0.7.0.exe** (or unzip `AgeOfClicks-ModAPI-0.7.0.zip` and
+2. Run **AgeOfClicks-ModAPI-Setup-0.7.1.exe** (or unzip `AgeOfClicks-ModAPI-0.7.1.zip` and
    double-click `Setup.bat`). Windows SmartScreen may warn because the file is not signed:
    *More info > Run anyway*.
 3. The setup window finds the game through Steam. If it says *No Age of Clicks here*, click
@@ -111,9 +111,9 @@ A game update can replace `app/Age of Clicks.cfg`, which holds the line that sta
 Built into the loader: improvements to the game itself, each with its own switch under MODS >
 CODE MODS > *Game Improvements*.
 
-- **Army numbers on the fronts**: at war, each side's army on a front is written on its own side
-  of the line, turned along the front (classic combat; the game shows flags there but no numbers).
-  A country's army (infantry + artillery + tanks) is split over its fronts by its flags on each.
+- **Army numbers on the fronts**: at war, each side's army on a front is written on its own land
+  next to the front, turned along it, in both combat modes. A country's army (infantry + artillery
+  + tanks) is split over its fronts by its frontline flags and divisions facing each enemy.
 - **Zoom further out**: zoom further out of the map than the game allows (*Zoom-out limit*) and
   scroll past its edges (*Scroll past the edges*). This used to be the separate Zoom Out mod; the
   loader removes the old `zoomout.jar` by itself.
