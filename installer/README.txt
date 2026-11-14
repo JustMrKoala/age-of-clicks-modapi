@@ -9,6 +9,7 @@ Install
 
 What you get
   - Main menu > MODS > CODE MODS: every code mod, with its settings.
+  - CODE MODS > Browse mods: the Mod Browser, to install, update or remove code mods.
   - AI Diplomacy: in a game press F8 (or the "Diplomacy" button under the flag) and talk to
     any country's leader. It needs an API key: Code Mods > AI Diplomacy > API key.
     Free Groq keys: https://console.groq.com/keys

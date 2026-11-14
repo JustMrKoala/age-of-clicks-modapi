@@ -35,6 +35,7 @@ version fails to load in the game).
 |---|---|
 | `./build.sh` | Compile loader, server, every `mods/<name>/` with a `src/`, and the template into `build/` |
 | `./build.sh --install` | Also copy into the game and add the agent line (close the game first) |
+| `./build.sh --catalog` | Also refresh `catalog/` (index.json + mod jars) for the Mod Browser; commit and push to publish |
 | `./build.sh --dist` | `dist/`: player zip, `AgeOfClicks-ModAPI-Setup-<ver>.exe`, SDK zip |
 | `./build.sh --uninstall` | Restore the vanilla launch config |
 
@@ -79,6 +80,32 @@ classes as they load:
 - Event days in `events.json` count from scenario start; `declare_war` effect: `target` attacks `textArg`.
 - `onLoad` runs before GL exists: creating a SpriteBatch or Texture there kills the mod. Loading
   MapScreen during premain is unsafe too.
+
+### Mod UI next to the game's HUD
+- `GameHud` (internal) measures the game's interface once per frame: top bar (`CFG.topBarBottom()`),
+  dock (`CGSInGame.getDockTopY()`, private `dockX`/`dockW`), every visible `MenuElement` of the HUD
+  (`getMenuElements()`, notices via `getTopLayerElements()`), and every visible `SliderMenu` field
+  of `MapScreen` (panels; `isModalOverlay()` or more than 55% of the screen counts as modal, as do
+  visible `*Dialog` fields). `Ui` places HUD widgets, notices and windows around those blocks.
+  Measured on 1920x1081: top bar 131 px, dock from y 930 (x 641..1279), the left tool strip at
+  x 18..76 from y 346, game notices from y 150; economy panel x 19..523, diplomacy and army on the right.
+- HUD widgets slide down (bottom anchors: up) past blocks; when a panel fills the edge they step
+  beside it (`GameHud.sideStep`); modal or `CFG.uiHidden` hides them. Placed widgets are claimed
+  as blocks, so mods stack. Rect-supplier HUD widgets (`ModsScreenButton`) are never moved.
+- Dev self-test: `mods/aoc-loader/uitest.properties` with `save=<folder in saves/>` opens the Mod
+  Browser, loads the save, opens economy / diplomacy / army and a mod window, and writes
+  screenshots plus the measured blocks (`UITEST` lines in the log). Run it on a copy of a save.
+
+### Mod Browser and catalog
+- `catalog/index.json` + the mod jars are tracked in git on purpose: the browser downloads them
+  from raw.githubusercontent.com (loader setting `mod_catalog`, https only), checks SHA-256 and
+  size, and writes into `mods/`. `tools/CatalogIndex.java` builds the index from the jars
+  (`build.sh --catalog`). Every loader build carries `catalog/index.json` as `/aoc-catalog.json`,
+  so the list shows offline and never offers a jar that is not published.
+- A loaded jar is locked on Windows: updates are saved as `<jar>.update`, removals as an empty
+  `<jar>.remove`, and `ModCatalog.applyPending` finishes both at the next start, before mods load.
+- Publishing a mod version: bump its `version()`, `./build.sh --catalog`, commit `catalog/`, push.
+  `loader` in the index is the loader version the jars were built for; older loaders refuse them.
 
 ### Main menu and MODS screen
 - The game's MODS row opens `ModManagerScreen`, an index of scenario mods (not an editor).

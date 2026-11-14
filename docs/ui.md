@@ -24,16 +24,30 @@ Build UI in `onGameReady` or later (fonts don't exist in `onLoad`).
 | Method | |
 |---|---|
 | `open(w)`, `close(w)`, `toggle(w)`, `isOpen(w)` | Show and hide windows; the last opened is on top |
-| `addHud(widget, anchor, dx, dy, when)` | Pins a widget to a screen corner or edge while `when` is true (design-pixel offsets) |
-| `toast(text, seconds)` | A short notice at the top of the screen; safe from any thread |
+| `addHud(widget, anchor, when)` | Pins a widget to a corner or edge of the free map area while `when` is true. The loader finds the spot (see below) |
+| `addHud(widget, anchor, dx, dy, when)` | The same with your own design-pixel offsets from the screen corner; it still steps aside for the game's interface |
+| `freeArea()` | `{x, y, width, height}` of the screen between the game's top bar and dock (the whole window outside a game), for your own drawing |
+| `toast(text, seconds)` | A short notice at the top of the screen, under the game's top bar and its own notices; safe from any thread |
 | `addEconomyCityRow(name, description, chip, button, onClick)` | A row in the game's Economy menu, Cities section, right under its own "Found city" row, drawn like the game's rows: `chip` and `button` are suppliers for the row's badge text and button caption; `onClick` runs when the row or its button is clicked. Call once, e.g. in `onLoad` |
 | `addMainMenuButton(label, onClick)` | A row for your mod in the main menu under MODS; the loader keeps at most two rows there (with multiplayer on, one) so EXIT stays on screen, and later mods get a button at the top of MODS > CODE MODS instead. Call once, e.g. in `onLoad` |
 | `bindKey(keycode, action)`, `unbindKey(keycode)` | Global hotkey (`com.badlogic.gdx.Input.Keys`); works even while typing, so bind function keys, not letters |
 
 `Ui.Anchor`: TOP_LEFT, TOP_CENTER, TOP_RIGHT, LEFT_CENTER, RIGHT_CENTER, BOTTOM_LEFT,
-BOTTOM_CENTER, BOTTOM_RIGHT. The game's own HUD covers much of the top edge. Down the left edge
-(TOP_LEFT), the Diplomacy button sits at `dy` 112 and the loader's Action Tester at 150; start
-your own at 188 or lower down.
+BOTTOM_CENTER, BOTTOM_RIGHT.
+
+### Staying off the game's interface
+
+Mod UI never covers the game's own interface. Every frame the loader reads where the game's top
+bar, dock, HUD buttons, notices and open panels are, and places mod UI around them:
+
+- **HUD widgets** start at their anchor and step past whatever is in the way: the top bar, the
+  game's HUD buttons, and other mods' widgets (so several mods on TOP_LEFT stack by themselves; no
+  need to pick offsets). When an open game panel (Economy, Diplomacy, Army, ...) fills that edge,
+  the widget stands next to the panel. While a dialog or a full-screen menu is open, or the player
+  hid the interface, HUD widgets are not drawn and take no clicks.
+- **Notices** (`toast`) stack under the game's own notices, and under other mods' notices.
+- **Windows** open between the top bar and the dock, next to an open game panel when they fit
+  there, and cannot be dragged over the top bar or the dock. On small screens they shrink to fit.
 
 Clicks on your windows never reach the map; clicks elsewhere go to the game as usual.
 

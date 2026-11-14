@@ -3,7 +3,7 @@
 ## Install
 
 1. Close Age of Clicks.
-2. Run **AgeOfClicks-ModAPI-Setup-0.4.0.exe** (or unzip `AgeOfClicks-ModAPI-0.4.0.zip` and
+2. Run **AgeOfClicks-ModAPI-Setup-0.5.0.exe** (or unzip `AgeOfClicks-ModAPI-0.5.0.zip` and
    double-click `Setup.bat`). Windows SmartScreen may warn because the file is not signed:
    *More info > Run anyway*.
 3. The setup window finds the game through Steam. If it says *No Age of Clicks here*, click
@@ -16,7 +16,9 @@
 5. Click **Install / Update**, then start the game through Steam as usual.
 
 The game's own **MODS** screen (main menu > MODS) now has a **CODE MODS** button next to Back:
-every code mod with its settings. The main menu gets **REPLAYS** and, with multiplayer on,
+every code mod with its settings. **Browse mods** there opens the **Mod Browser**: the list of
+available code mods, with Install, Update and Remove (changes load the next time the game
+starts; it needs an internet connection to download). The main menu gets **REPLAYS** and, with multiplayer on,
 **MULTIPLAYER**.
 
 ### Without the window

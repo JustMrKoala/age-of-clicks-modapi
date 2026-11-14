@@ -62,6 +62,10 @@ final class CodeModsScreen {
         Label intro = new Label("Mods made with the Age of Clicks Mod API. Scenario mods are in the list behind this window.")
                 .font(Theme.Font.SMALL).muted();
         Panel left = Panel.column().gap(8).width(280).add(intro, list,
+                new Button("Browse mods").primary().onClick(() -> {
+                    window.close();
+                    ModManager.openModBrowser();
+                }),
                 new Button("Open mods folder").onClick(() -> openFolder(modsDir)));
 
         // Mods' own screens (Ui.addMainMenuButton) that did not fit in the main menu.

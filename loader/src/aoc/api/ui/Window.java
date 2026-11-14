@@ -69,17 +69,23 @@ public class Window extends Widget<Window> {
         return closable && mx >= x + w - m - s && mx < x + w - m && my >= y + m && my < y + m + s;
     }
 
-    /** Fits the window to the screen and lays out its content. */
-    void place(float screenW, float screenH) {
+    /**
+     * Fits the window between {@code top} and {@code bottom} (in game: the game's top bar and dock,
+     * which a window never covers) and lays out its content. {@code openLeft..openRight} is the
+     * screen width no game panel uses; a window opens in the middle of it.
+     */
+    void place(float screenW, float screenH, float top, float bottom, float openLeft, float openRight) {
+        float room = bottom - top;
         float ww = Math.min(Theme.s(designW), screenW - Theme.s(20));
-        float wh = Math.min(Theme.s(designH), screenH - Theme.s(20));
+        float wh = Math.min(Theme.s(designH), room - Theme.s(top > 0 || bottom < screenH ? 12 : 20));
         if (!placed) {
-            x = (screenW - ww) / 2f;
-            y = (screenH - wh) / 2f;
+            // Next to an open game panel when the window fits there, else in the middle of the screen.
+            x = openRight - openLeft >= ww ? openLeft + (openRight - openLeft - ww) / 2f : (screenW - ww) / 2f;
+            y = top + (room - wh) / 2f;
             placed = true;
         }
         x = Math.max(0, Math.min(x, screenW - ww));
-        y = Math.max(0, Math.min(y, screenH - wh));
+        y = Math.max(top, Math.min(y, bottom - wh));
         w = ww;
         h = wh;
         content.layout(x, y + headerHeight(), w, h - headerHeight());

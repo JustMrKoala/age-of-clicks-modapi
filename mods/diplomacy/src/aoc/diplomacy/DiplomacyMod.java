@@ -63,7 +63,7 @@ public final class DiplomacyMod implements AocMod {
     public String name() { return "AI Diplomacy"; }
 
     @Override
-    public String version() { return "0.4.0"; }
+    public String version() { return "0.4.1"; }
 
     @Override
     public String description() {
@@ -91,7 +91,7 @@ public final class DiplomacyMod implements AocMod {
         Ui ui = ctx.ui();
         buildWindow();
         ui.addHud(new Button("Diplomacy  [" + Input.Keys.toString(hotkey) + "]").onClick(this::toggle),
-                Ui.Anchor.TOP_LEFT, 12, 112, () -> ctx.game().inGame() && !window.isOpen());
+                Ui.Anchor.TOP_LEFT, () -> ctx.game().inGame() && !window.isOpen());
         ui.bindKey(hotkey, this::hotkeyPressed);
     }
 

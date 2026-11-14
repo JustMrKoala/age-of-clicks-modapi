@@ -51,6 +51,7 @@ an untracked `central-server.txt` (one line, `host:port`); without it players fi
 ```bash
 ./build.sh --install     # builds, copies app/aoc-loader.jar and mods/*.jar, adds the agent to the launch config
 ./build.sh --uninstall   # restores app/Age of Clicks.cfg from app/Age of Clicks.cfg.vanilla
+./build.sh --catalog     # also refreshes catalog/ (index.json + mod jars); commit and push it to publish mod versions
 ./build.sh --dist        # dist/: player zip, Setup .exe (IExpress), SDK zip (docs, javadoc, template)
 ```
 
@@ -103,7 +104,12 @@ public final class HelloMod implements AocMod {
 
 The loader adds a **CODE MODS** button to the game's own **MODS** screen (main menu > MODS, the
 index of scenario mods), next to its Back button. It lists every installed code mod with its name, version, author and
-description, and builds a settings form from what each mod declares:
+description, and builds a settings form from what each mod declares. Its **Browse mods** button opens
+the **Mod Browser**: every mod in the catalog (`catalog/` in this repository: AI Diplomacy, Replays,
+Bulk Cities, Zoom Out), with Install, Update and Remove. Downloads are checked against the catalog's
+SHA-256 and load the next time the game starts.
+
+Settings form:
 
 ```java
 public String name() { return "My Mod"; }

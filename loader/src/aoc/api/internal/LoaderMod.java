@@ -16,6 +16,7 @@ final class LoaderMod implements AocMod {
     private static volatile Setting<Boolean> experimentalMultiplayer;
     private static volatile Setting<String> playerName;
     private static volatile Setting<String> centralServer;
+    private static volatile Setting<String> modCatalog;
     private Setting<Boolean> devTools;
     private ActionTester tester;
 
@@ -45,12 +46,14 @@ final class LoaderMod implements AocMod {
                 "The name other players see in the lobby.");
         centralServer = ctx.settings().text("central_server", "Central server", Version.CENTRAL_SERVER,
                 "Address of the lobby server that hosts online matches (host:port).");
+        modCatalog = ctx.settings().text("mod_catalog", "Mod catalog", ModCatalog.DEFAULT_URL,
+                "Address of the mod list the Mod Browser shows (an https link to an index.json).");
     }
 
     @Override
     public void onGameReady(ModContext ctx) {
         tester = new ActionTester(ctx);
-        ctx.ui().addHud(new Button("Action Tester").onClick(tester::toggle), Ui.Anchor.TOP_LEFT, 12, 150,
+        ctx.ui().addHud(new Button("Action Tester").onClick(tester::toggle), Ui.Anchor.TOP_LEFT,
                 () -> devTools.get() && ctx.game().inGame());
     }
 
@@ -67,6 +70,12 @@ final class LoaderMod implements AocMod {
     static boolean experimentalMultiplayer() {
         Setting<Boolean> s = experimentalMultiplayer;
         return s != null && s.get();
+    }
+
+    static String modCatalog() {
+        Setting<String> s = modCatalog;
+        String url = s == null ? "" : s.get().trim();
+        return url.isEmpty() ? ModCatalog.DEFAULT_URL : url;
     }
 
     static Setting<String> playerName() { return playerName; }

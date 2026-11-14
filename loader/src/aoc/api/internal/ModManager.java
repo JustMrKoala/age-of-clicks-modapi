@@ -27,11 +27,14 @@ public final class ModManager {
     private static final class Loaded {
         final AocMod mod;
         final ModContext ctx;
+        /** The jar the mod came from; null for the loader's own entry. */
+        final File jar;
         int errors;
 
-        Loaded(AocMod mod, ModContext ctx) {
+        Loaded(AocMod mod, ModContext ctx, File jar) {
             this.mod = mod;
             this.ctx = ctx;
+            this.jar = jar;
         }
     }
 
@@ -46,6 +49,8 @@ public final class ModManager {
     /** The loader's own windows (Code Mods); drawn above every mod. */
     private static final Ui SYSTEM_UI = new Ui();
     private static CodeModsScreen codeMods;
+    private static ModBrowser modBrowser;
+    private static UiSelfTest uiSelfTest;
     private static MultiplayerTestWindow multiplayerTest;
     /** Developer test of the online start flow; null unless mods/aoc-loader/mptest.properties exists. */
     private static MultiplayerSelfTest mpSelfTest;
@@ -65,10 +70,12 @@ public final class ModManager {
             ModContext ctx = new ModContext(loader.id(), loader.name(), gameDir, GAME, WORLD, ACTIONS);
             loader.onLoad(ctx);
             loaderSettings = ctx.settings();
-            MODS.add(new Loaded(loader, ctx));
+            MODS.add(new Loaded(loader, ctx, null));
         } catch (Throwable t) {
             Log.error("Loader settings failed", t);
         }
+        // Updates and removals the player asked for in the Mod Browser, while the jars are still free.
+        ModCatalog.applyPending(new File(gameDir, "mods"));
         File[] jars = new File(gameDir, "mods").listFiles((d, n) -> n.toLowerCase().endsWith(".jar"));
         if (jars == null || jars.length == 0) {
             Log.info("No mods found in " + new File(gameDir, "mods"));
@@ -81,7 +88,7 @@ public final class ModManager {
                 for (AocMod mod : ServiceLoader.load(AocMod.class, cl)) {
                     ModContext ctx = new ModContext(mod.id(), mod.name(), gameDir, GAME, WORLD, ACTIONS);
                     mod.onLoad(ctx);
-                    MODS.add(new Loaded(mod, ctx));
+                    MODS.add(new Loaded(mod, ctx, jar));
                     Log.info("Loaded mod '" + mod.id() + "' from " + jar.getName());
                 }
             } catch (Throwable t) {
@@ -130,6 +137,23 @@ public final class ModManager {
         }
     }
 
+    /** Opens the Mod Browser (Code Mods > Browse mods): the catalog of mods to install. */
+    static void openModBrowser() {
+        try {
+            if (modBrowser == null) {
+                modBrowser = new ModBrowser(SYSTEM_UI, new File(gameDir, "mods"), id -> {
+                    for (Loaded m : MODS) if (m.mod.id().equals(id)) return new ModBrowser.Installed(m.mod.version(), m.jar);
+                    return null;
+                }, LoaderMod::modCatalog);
+            }
+            modBrowser.open();
+        } catch (Throwable t) {
+            Log.error("Mod Browser failed", t);
+        }
+    }
+
+    static Ui systemUi() { return SYSTEM_UI; }
+
     /** Opens main menu > MODS > Code Mods. */
     static void openCodeMods() {
         if (codeMods == null) {
@@ -160,6 +184,7 @@ public final class ModManager {
             ready = true;
             INPUTS.add(SYSTEM_UI);
             mpSelfTest = MultiplayerSelfTest.load(gameDir);
+            uiSelfTest = UiSelfTest.load(gameDir);
             ModsScreenButton.install(SYSTEM_UI, ModManager::openCodeMods);
             try {
                 overlay = new Overlay();
@@ -182,6 +207,7 @@ public final class ModManager {
         float delta = Gdx.graphics.getDeltaTime();
         if (multiplayerTest != null) multiplayerTest.tick(delta);
         if (mpSelfTest != null) mpSelfTest.tick(delta);
+        if (uiSelfTest != null) uiSelfTest.tick(delta);
         boolean mp = multiplayerActive();
         if (mp != multiplayer) {
             multiplayer = mp;
@@ -210,6 +236,7 @@ public final class ModManager {
             Log.error("Loader UI failed", t);
         }
         if (mpSelfTest != null) mpSelfTest.afterUi();
+        if (uiSelfTest != null) uiSelfTest.afterUi();
     }
 
     private static void guard(Loaded m, Runnable call) {

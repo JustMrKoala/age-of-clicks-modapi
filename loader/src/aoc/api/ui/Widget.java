@@ -15,6 +15,8 @@ import java.util.List;
 public abstract class Widget<S extends Widget<S>> {
     protected float x, y, w, h;
     protected boolean visible = true;
+    /** HUD widgets only: false while the game's interface leaves no room for it. */
+    boolean hudShown = true;
     protected int fixedW = -1, fixedH = -1;
     protected float flex;
     protected String tooltip;

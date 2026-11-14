@@ -1,5 +1,6 @@
 package aoc.api.ui;
 
+import aoc.api.internal.GameHud;
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.InputProcessor;
 import com.badlogic.gdx.graphics.GL20;
@@ -65,7 +66,20 @@ public final class Ui implements InputProcessor {
         else open(w);
     }
 
-    /** Pins a widget to the screen, shown while {@code when} is true. Offsets/size are design pixels. */
+    /**
+     * Pins a widget to a corner or edge of the free map area, shown while {@code when} is true. The
+     * loader finds the spot: under the game's top bar, above its dock, clear of the game's own HUD,
+     * open panels and other mods' widgets. While a dialog or full-screen menu is open, or the player
+     * hid the interface, the widget is left out. Prefer this over fixed offsets.
+     */
+    public void addHud(Widget<?> widget, Anchor anchor, BooleanSupplier when) {
+        addHud(widget, anchor, 12, 12, when);
+    }
+
+    /**
+     * Like {@link #addHud(Widget, Anchor, BooleanSupplier)} with your own offsets from the screen
+     * corner (design pixels). In game the widget still steps aside for the game's interface.
+     */
     public void addHud(Widget<?> widget, Anchor anchor, int dx, int dy, BooleanSupplier when) {
         hud.add(new Hud(widget, anchor, dx, dy, when, null));
         widget.ui = this;
@@ -142,13 +156,16 @@ public final class Ui implements InputProcessor {
         batch.begin();
         try {
             for (Hud hd : hud) {
-                if (!hd.when().getAsBoolean() || !hd.widget().visible) continue;
-                placeHud(hd, sw, sh);
+                hd.widget().hudShown = hd.when().getAsBoolean() && hd.widget().visible && placeHud(hd, sw, sh);
+                if (!hd.widget().hudShown) continue;
                 attach(hd.widget());
                 hd.widget().draw(batch, delta);
             }
             for (Window w : new ArrayList<>(windows)) {
-                w.place(sw, sh);
+                GameHud.Layout l = GameHud.layout();
+                float[] open = GameHud.openWidth();
+                if (l.inGame()) w.place(sw, sh, l.top(), l.bottom(), open[0], open[1]);
+                else w.place(sw, sh, 0, sh, 0, sw);
                 attach(w);
                 w.draw(batch, delta);
             }
@@ -160,12 +177,13 @@ public final class Ui implements InputProcessor {
         }
     }
 
-    private void placeHud(Hud hd, float sw, float sh) {
+    /** Lays a HUD widget out; false when the game's interface leaves no room for it this frame. */
+    private boolean placeHud(Hud hd, float sw, float sh) {
         Widget<?> wd = hd.widget();
         if (hd.rect() != null) {
             float[] r = hd.rect().get();
             wd.layout(r[0], r[1], r[2], r[3]);
-            return;
+            return true;
         }
         float w = wd.preferredWidth(), h = wd.preferredHeight(w);
         float dx = Theme.s(hd.dx()), dy = Theme.s(hd.dy());
@@ -180,20 +198,45 @@ public final class Ui implements InputProcessor {
             case BOTTOM_RIGHT: x = sw - w - dx; y = sh - h - dy; break;
             default: x = dx; y = dy;
         }
+        boolean fromBottom = hd.anchor() == Anchor.BOTTOM_LEFT || hd.anchor() == Anchor.BOTTOM_CENTER || hd.anchor() == Anchor.BOTTOM_RIGHT;
+        float free = GameHud.place(x, y, w, h, !fromBottom);
+        if (Float.isNaN(free) && hd.anchor() != Anchor.TOP_CENTER && hd.anchor() != Anchor.BOTTOM_CENTER) {
+            // An open game panel fills this edge: stand next to it instead.
+            boolean fromLeft = hd.anchor() == Anchor.TOP_LEFT || hd.anchor() == Anchor.LEFT_CENTER || hd.anchor() == Anchor.BOTTOM_LEFT;
+            float beside = GameHud.sideStep(x, w, fromLeft);
+            if (!Float.isNaN(beside) && beside >= 0 && beside + w <= sw) {
+                x = beside;
+                free = GameHud.place(x, y, w, h, !fromBottom);
+            }
+        }
+        y = free;
+        if (Float.isNaN(y)) return false;
+        GameHud.claim(x, y, w, h, "mod widget");
         wd.layout(x, y, w, h);
+        return true;
+    }
+
+    /**
+     * The part of the screen the game's bars leave free ({@code x, y, width, height}, y-down window
+     * pixels): between the top bar and the dock while a map is played, else the whole window.
+     */
+    public float[] freeArea() {
+        GameHud.Layout l = GameHud.layout();
+        float sw = Gdx.graphics.getWidth(), sh = Gdx.graphics.getHeight();
+        return l.inGame() ? new float[]{0, l.top(), sw, l.bottom() - l.top()} : new float[]{0, 0, sw, sh};
     }
 
     private void drawToasts(float sw) {
-        float y = Theme.s(90);
         synchronized (toasts) {
             toasts.removeIf(t -> t.until() < clock);
             for (Toast t : toasts) {
                 float tw = Math.min(sw - Theme.s(40), Theme.textWidth(Theme.Font.MAIN, t.text()) + Theme.s(40));
                 float th = Theme.wrappedHeight(Theme.Font.MAIN, t.text(), tw - Theme.s(32)) + Theme.s(20);
                 float x = (sw - tw) / 2;
+                // Under the game's top bar and its own notices, and under other mods' notices.
+                float y = GameHud.nextNotice(th);
                 Theme.panel(batch, (int) x, (int) y, (int) tw, (int) th);
                 Theme.wrapped(batch, Theme.Font.MAIN, t.text(), x + Theme.s(16), y + Theme.s(10), tw - Theme.s(32), Align.center, Theme.textDark());
-                y += th + Theme.s(8);
             }
         }
     }
@@ -265,7 +308,7 @@ public final class Ui implements InputProcessor {
         }
         for (int i = hud.size() - 1; i >= 0; i--) {
             Hud hd = hud.get(i);
-            if (hd.when().getAsBoolean() && hd.widget().visible && hd.widget().contains(mx, my)) {
+            if (hd.widget().hudShown && hd.when().getAsBoolean() && hd.widget().visible && hd.widget().contains(mx, my)) {
                 chain(hd.widget(), mx, my, out);
                 return out;
             }

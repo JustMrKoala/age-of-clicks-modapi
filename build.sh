@@ -3,7 +3,8 @@
 # Needs a JDK 17+ on PATH (the game runs on Java 17, so classes target 17) and your own copy
 # of the game: the game jar is only compiled against, never copied into this repository.
 #   AOC_GAME            game folder (default: two folders up, else Steam's default folder)
-#   AOC_CENTRAL_SERVER  lobby server the loader suggests (default: central-server.txt, else none)
+#   ./build.sh --catalog  also refreshes catalog/ (index.json + mod jars) for the Mod Browser
+#   AOC_CENTRAL_SERVER lobby server the loader suggests (default: central-server.txt, else none)
 set -euo pipefail
 cd "$(dirname "$0")"
 if [[ -n "${AOC_GAME:-}" ]]; then GAME="$AOC_GAME"
@@ -32,8 +33,6 @@ javac --release 17 -nowarn -encoding UTF-8 -cp "$GAME_JAR${SEP}lib/asm-9.6.jar" 
   $(find loader/src -name '*.java')
 (cd "$OUT/loader" && unzip -qo ../../lib/asm-9.6.jar -x 'META-INF/*' module-info.class)
 printf 'central_server=%s\n' "$CENTRAL" > "$OUT/loader/aoc-build.properties"
-printf 'Premain-Class: aoc.loader.Agent\nImplementation-Title: Age of Clicks Mod Loader\nImplementation-Version: %s\n' "$VERSION" > "$OUT/loader.mf"
-jar --create --file "$OUT/aoc-loader.jar" --manifest "$OUT/loader.mf" -C "$OUT/loader" .
 
 echo "== dedicated server"
 mkdir -p "$OUT/server"
@@ -54,6 +53,22 @@ for dir in mods/*/; do
   cp -r "$dir/resources/." "$OUT/$MOD/"
   jar --create --file "$OUT/mods/$MOD.jar" -C "$OUT/$MOD" .
 done
+
+# The Mod Browser's catalog: an index of the mods just built. The loader carries a copy (the list
+# shows offline); `--catalog` also writes catalog/, which the browser downloads from once pushed.
+echo "== mod catalog"
+mkdir -p "$OUT/tools"
+javac -nowarn -encoding UTF-8 -cp "$OUT/loader" -d "$OUT/tools" tools/CatalogIndex.java
+if [[ "${1:-}" == "--catalog" ]]; then
+  rm -rf catalog && mkdir -p catalog && cp "$OUT"/mods/*.jar catalog/
+  java -cp "$GAME_JAR${SEP}$OUT/loader${SEP}$OUT/tools" CatalogIndex catalog "$VERSION" > catalog/index.json
+  echo "Wrote catalog/ (commit and push it to publish these mod versions)"
+fi
+# Builds carry the published index, so the browser never offers a jar that is not online.
+if [[ -f catalog/index.json ]]; then cp catalog/index.json "$OUT/loader/aoc-catalog.json"
+else java -cp "$GAME_JAR${SEP}$OUT/loader${SEP}$OUT/tools" CatalogIndex "$OUT/mods" "$VERSION" > "$OUT/loader/aoc-catalog.json"; fi
+printf 'Premain-Class: aoc.loader.Agent\nImplementation-Title: Age of Clicks Mod Loader\nImplementation-Version: %s\n' "$VERSION" > "$OUT/loader.mf"
+jar --create --file "$OUT/aoc-loader.jar" --manifest "$OUT/loader.mf" -C "$OUT/loader" .
 
 echo "== template (compile check)"
 mkdir -p "$OUT/template"

@@ -199,7 +199,7 @@ final class MultiplayerSelfTest {
         next(Step.CLOSING);
     }
 
-    private static void dumpScreen(File f) {
+    static void dumpScreen(File f) {
         int w = Gdx.graphics.getBackBufferWidth(), h = Gdx.graphics.getBackBufferHeight();
         ByteBuffer buf = com.badlogic.gdx.utils.BufferUtils.newByteBuffer(w * h * 4);
         Gdx.gl.glPixelStorei(GL20.GL_PACK_ALIGNMENT, 1);

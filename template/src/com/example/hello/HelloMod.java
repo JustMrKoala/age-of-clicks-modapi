@@ -60,7 +60,7 @@ public final class HelloMod implements AocMod {
                 list,
                 Panel.row().gap(8).add(gift, new Button("Close").onClick(window::close)));
 
-        ctx.ui().addHud(new Button("Hello").onClick(() -> toggle(ctx)), Ui.Anchor.TOP_LEFT, 12, 188, ctx.game()::inGame);
+        ctx.ui().addHud(new Button("Hello").onClick(() -> toggle(ctx)), Ui.Anchor.TOP_LEFT, ctx.game()::inGame);
         ctx.ui().bindKey(Input.Keys.F9, () -> { if (ctx.game().inGame()) toggle(ctx); });
         ctx.log("ready");
     }

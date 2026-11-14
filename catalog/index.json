@@ -1,0 +1,20 @@
+{
+  "mods": [
+    {"id": "bulkcities", "name": "Bulk Cities", "version": "1.0.0", "author": "Age of Clicks Mod API",
+     "description": "Found many cities quickly: found-city mode stays on and every city is named for you, with the real town at that spot or a name in the region's style. Can also fill your land with its real towns.",
+     "file": "bulkcities.jar", "size": 24299, "loader": "0.5.0",
+     "sha256": "bb21862437f3888c46f6073fb3dd6637e804a003b13cf8a52ceefd790da4ea0a"},
+    {"id": "diplomacy", "name": "AI Diplomacy", "version": "0.4.1", "author": "",
+     "description": "Talk to any country's leader in your own words. An AI plays the leader from live game data and can agree to anything in the mod API's action catalog; deals happen when you accept them.",
+     "file": "diplomacy.jar", "size": 34659, "loader": "0.5.0",
+     "sha256": "71c159756c2e83da9562720d7fa21176be91a3c49bdd95229bcd4e9964c1bfd3"},
+    {"id": "replay", "name": "Replays", "version": "2.0.0", "author": "Age of Clicks Mod API",
+     "description": "Films your single-player games with the game's own graphics from a cinematic camera that follows your country and its wars. Needs ffmpeg.",
+     "file": "replay.jar", "size": 85421, "loader": "0.5.0",
+     "sha256": "385f7dffad744bac4d4896658d9fb9132f01c930a6326b797559a01cd75acbe4"},
+    {"id": "zoomout", "name": "Zoom Out", "version": "1.0.0", "author": "Age of Clicks Mod API",
+     "description": "Zoom further out of the map, and scroll past its edges so border regions are reachable.",
+     "file": "zoomout.jar", "size": 2384, "loader": "0.5.0",
+     "sha256": "0344804001aa49c9fc2025fc831abdf374766219ff318eb3f036b078fef27ac0"}
+  ]
+}
