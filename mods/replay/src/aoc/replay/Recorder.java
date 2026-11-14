@@ -33,6 +33,8 @@ import java.util.zip.GZIPOutputStream;
 final class Recorder {
     /** Sampled grid is at most this wide, enough for a 1440p video of the whole map. */
     private static final int MAX_GRID = 1600;
+    private static final long MIN_SAMPLE_GAP_NANOS = 300_000_000L;
+    private long lastSampleNanos;
 
     private final ModContext ctx;
     private final File dir;
@@ -91,6 +93,11 @@ final class Recorder {
         }
         lastDay = day;
         if (day < nextDay) return;
+        // Sped up, the calendar runs dozens of days a second; a sample scans the whole map, so at most
+        // a few per real second (measured at x16: sampling took almost half of the render thread).
+        long now = System.nanoTime();
+        if (now - lastSampleNanos < MIN_SAMPLE_GAP_NANOS) return;
+        lastSampleNanos = now;
         nextDay = day + Math.max(1, everyDays);
         try {
             writeFrame(gm, wm, day);
@@ -161,7 +168,9 @@ final class Recorder {
     private void writeFrame(GameManager gm, WarManager wm, int day) throws IOException {
         // Ownership: sample, compare, store runs of cells that changed to the same owner.
         NativeIntGrid grid = wm.getOwnershipGrid();
-        Map<Integer, Integer> area = new HashMap<>();
+        // Only which countries hold land matters here: one set insert per stretch of equal cells.
+        Set<Integer> holders = new HashSet<>();
+        int lastSeen = -1;
         List<int[]> runs = new ArrayList<>();
         int lastEnd = 0, runStart = -1, runOwner = 0;
         for (int gy = 0; gy < gh; gy++) {
@@ -169,7 +178,10 @@ final class Recorder {
             for (int gx = 0; gx < gw; gx++) {
                 int i = gy * gw + gx;
                 int owner = row[Math.min(gx * scale, row.length - 1)];
-                if (owner != -1) area.merge(owner, 1, Integer::sum);
+                if (owner != lastSeen) {
+                    lastSeen = owner;
+                    if (owner != -1) holders.add(owner);
+                }
                 boolean changed = owner != prev[i];
                 if (runStart >= 0 && (!changed || owner != runOwner)) {
                     runs.add(new int[]{runStart - lastEnd, i - runStart, runOwner});
@@ -189,7 +201,7 @@ final class Recorder {
         Map<Integer, CountryState> states = new HashMap<>();
         for (CountryState s : gm.getWorldCountries().values()) states.put(wm.getColorKeyByName(s.getName()), s);
         List<WarManager.War> wars = new ArrayList<>(wm.getActiveWars());
-        Set<Integer> present = new HashSet<>(area.keySet());
+        Set<Integer> present = holders;
         for (WarManager.War w : wars) {
             if (w.attacker != null) present.add(w.attacker.colorKey);
             if (w.defender != null) present.add(w.defender.colorKey);

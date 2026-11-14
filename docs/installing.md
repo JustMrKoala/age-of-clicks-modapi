@@ -3,7 +3,7 @@
 ## Install
 
 1. Close Age of Clicks.
-2. Run **AgeOfClicks-ModAPI-Setup-0.5.0.exe** (or unzip `AgeOfClicks-ModAPI-0.5.0.zip` and
+2. Run **AgeOfClicks-ModAPI-Setup-0.6.0.exe** (or unzip `AgeOfClicks-ModAPI-0.6.0.zip` and
    double-click `Setup.bat`). Windows SmartScreen may warn because the file is not signed:
    *More info > Run anyway*.
 3. The setup window finds the game through Steam. If it says *No Age of Clicks here*, click
@@ -77,7 +77,9 @@ hands (army flags with troop counts, besieged cities' garrison bars), cuts away 
 and adds the date, your flag and country stats and news captions. During your wars the camera holds one
 steady zoom on the fighting and drifts with it. Peace goes by quicker than wars; how slowly a war can
 play depends on your game speed (fully slow at x1 and x2, about 10 game days per film second at x4,
-faster at x8 and x16, since the film can only show frames the game draws). You never see that camera;
+faster at x8 and x16, since the film can only show frames the game draws). That is why, while your
+own country is at war, the game itself is held at x2 and gets your speed back when the war ends
+(setting *Game speed during your own wars*: off, x1, x2, x4, x8). You never see the film camera;
 your own view and map mode are untouched.
 Films go to `Videos\Age of Clicks Replays` as MP4. Main menu > **REPLAYS** plays them
 in the game (Space pause, Left/Right 10 s, Esc close).
@@ -104,6 +106,15 @@ just fill in the dialog, keep founding after each city, prefer real names.
 ## After a Steam update
 
 A game update can replace `app/Age of Clicks.cfg`, which holds the line that starts the loader.
+### Game Improvements
+
+Built into the loader: improvements to the game itself, each with its own switch under MODS >
+CODE MODS > *Game Improvements*.
+
+- **Army numbers on the fronts**: at war, each side's army on a front is written on its own side
+  of the line, turned along the front (classic combat; the game shows flags there but no numbers).
+  A country's army (infantry + artillery + tanks) is split over its fronts by its flags on each.
+
 If CODE MODS disappears from main menu > MODS, run Setup again and click Install / Update.
 
 ## Uninstall

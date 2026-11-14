@@ -76,6 +76,14 @@ public final class ModManager {
         }
         // Updates and removals the player asked for in the Mod Browser, while the jars are still free.
         ModCatalog.applyPending(new File(gameDir, "mods"));
+        try {
+            Improvements improvements = new Improvements();
+            ModContext ctx = new ModContext(improvements.id(), improvements.name(), gameDir, GAME, WORLD, ACTIONS);
+            improvements.onLoad(ctx);
+            MODS.add(new Loaded(improvements, ctx, null));
+        } catch (Throwable t) {
+            Log.error("Game Improvements failed to load", t);
+        }
         File[] jars = new File(gameDir, "mods").listFiles((d, n) -> n.toLowerCase().endsWith(".jar"));
         if (jars == null || jars.length == 0) {
             Log.info("No mods found in " + new File(gameDir, "mods"));
@@ -153,6 +161,10 @@ public final class ModManager {
     }
 
     static Ui systemUi() { return SYSTEM_UI; }
+
+    static void closeModBrowser() {
+        if (modBrowser != null) modBrowser.close();
+    }
 
     /** Opens main menu > MODS > Code Mods. */
     static void openCodeMods() {

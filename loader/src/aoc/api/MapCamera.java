@@ -36,6 +36,15 @@ public final class MapCamera {
 
     public float edgeMargin() { return edgeMargin; }
 
+    /**
+     * Where a map point (map pixels, y down) is on the player's screen: {@code {x, y}} in y-down
+     * window pixels, the coordinates of {@code Ui} and input events; null when no map is open.
+     */
+    public float[] toScreen(float mapX, float mapY) {
+        float[] out = new float[2];
+        return Hooks.mapToScreen(mapX, mapY, out) ? out : null;
+    }
+
     /** The map camera's current zoom (larger = further out); 0 when no map is open. */
     public float zoom() { return Hooks.mapZoom(); }
 

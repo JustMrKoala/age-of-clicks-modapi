@@ -150,7 +150,33 @@ public final class Hooks {
         return cam == null ? 0f : Math.min(cam.viewportWidth, cam.viewportHeight) * cam.zoom;
     }
 
-    private static com.badlogic.gdx.graphics.OrthographicCamera camera() {
+    private static java.lang.reflect.Field mapWorldBounds;
+    private static final com.badlogic.gdx.math.Vector3 PROJECTED = new com.badlogic.gdx.math.Vector3();
+
+    /**
+     * Where a map point (map pixels, y down, like the ownership grid) is on screen under the player's
+     * camera: {@code out} gets x and y in y-down window pixels. False when no map is open. Render thread.
+     */
+    public static boolean mapToScreen(float mapX, float mapY, float[] out) {
+        ru.ius.david.cgs.MapScreen map = ru.ius.david.cgs.MapScreen.getActiveInstance();
+        com.badlogic.gdx.graphics.OrthographicCamera cam = camera();
+        if (map == null || cam == null) return false;
+        try {
+            if (mapWorldBounds == null) {
+                mapWorldBounds = map.getClass().getDeclaredField("worldBounds");
+                mapWorldBounds.setAccessible(true);
+            }
+            float worldH = ((com.badlogic.gdx.math.Rectangle) mapWorldBounds.get(map)).height;
+            cam.project(PROJECTED.set(mapX, worldH - mapY, 0));
+            out[0] = PROJECTED.x;
+            out[1] = com.badlogic.gdx.Gdx.graphics.getHeight() - PROJECTED.y;
+            return true;
+        } catch (ReflectiveOperationException e) {
+            return false;
+        }
+    }
+
+    static com.badlogic.gdx.graphics.OrthographicCamera camera() {
         ru.ius.david.cgs.MapScreen map = ru.ius.david.cgs.MapScreen.getActiveInstance();
         if (map == null) return null;
         try {

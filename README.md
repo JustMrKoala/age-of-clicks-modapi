@@ -109,6 +109,9 @@ the **Mod Browser**: every mod in the catalog (`catalog/` in this repository: AI
 Bulk Cities, Zoom Out), with Install, Update and Remove. Downloads are checked against the catalog's
 SHA-256 and load the next time the game starts.
 
+The loader also carries **Game Improvements** (its own entry in CODE MODS, one switch per
+improvement): for now army numbers written along the fronts at war.
+
 Settings form:
 
 ```java

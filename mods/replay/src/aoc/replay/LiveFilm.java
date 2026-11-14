@@ -170,6 +170,7 @@ final class LiveFilm {
         // per 'days per frame' of game time. At war several film frames may be rendered in one game
         // frame, each its own picture, within the per-second cap and the time budget.
         boolean war = atWar(st);
+        limitWarSpeed(gm, ownWar(st));
         // Wars may take a bigger share of the game's time: they need the most film frames.
         budgetMs = Math.min(budgetMs + delta * 1000f * (war ? FILM_SHARE_AT_WAR : FILM_SHARE), 50f);
         float perFrame = (war ? warDays : peaceDays) / fps;
@@ -204,6 +205,46 @@ final class LiveFilm {
         }
         if (big != null) testFocus = big.war.attacker();
         return testFocus != -1 ? testFocus : st.player;
+    }
+
+    /** Most game speed while the focus country itself fights (0 = no limit); set from the mod's settings. */
+    int warSpeedLimit;
+    private int speedBeforeWar;
+    private boolean warNoticeShown;
+
+    /**
+     * A live film can only show the frames the game draws: a war played at x16 is over in seconds and no
+     * film speed setting brings it back. So while the player's own country is at war the game itself is
+     * held at the limit, and gets the player's speed back when the war ends.
+     */
+    private void limitWarSpeed(GameManager gm, boolean ownWar) {
+        if (selfTest != null) return;
+        if (warSpeedLimit > 0 && ownWar) {
+            int speed = gm.getPlaySpeed();
+            if (speed > warSpeedLimit) {
+                if (speedBeforeWar == 0) speedBeforeWar = speed;
+                gm.setPlaySpeed(warSpeedLimit);
+                if (!warNoticeShown) {
+                    warNoticeShown = true;
+                    ctx.ui().toast("Replay: at war, so the game runs at x" + warSpeedLimit
+                            + " for the film (change it in Code Mods > Replays)", 6);
+                }
+            }
+        } else if (speedBeforeWar > 0) {
+            if (!ownWar && gm.getPlaySpeed() == warSpeedLimit) gm.setPlaySpeed(speedBeforeWar);
+            speedBeforeWar = 0;
+            warNoticeShown = false;
+        } else if (!ownWar) {
+            warNoticeShown = false;
+        }
+    }
+
+    /** The focus country itself is the attacker or defender of a war. */
+    private boolean ownWar(ReplayState st) {
+        for (Replay.War w : st.replay.frames.get(st.frame()).wars()) {
+            if (w.attacker() == focus || w.defender() == focus) return true;
+        }
+        return false;
     }
 
     /** The focus country or a member of its alliance is in a war. */

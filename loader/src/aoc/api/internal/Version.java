@@ -5,7 +5,7 @@ import java.util.Properties;
 
 /** Version of the loader and API; shown in Code Mods and written to the jar manifest by build.sh. */
 public final class Version {
-    public static final String LOADER = "0.5.0";
+    public static final String LOADER = "0.6.0";
 
     /**
      * Central lobby server the loader suggests (host:port), or "" when the build has none.

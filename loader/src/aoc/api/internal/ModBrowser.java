@@ -55,6 +55,10 @@ final class ModBrowser {
         if (!online && !busy) refresh();
     }
 
+    void close() {
+        if (window != null) window.close();
+    }
+
     private void build() {
         window = new Window("Mod Browser", 1000, 640);
         list = new ListView<ModCatalog.Entry>()

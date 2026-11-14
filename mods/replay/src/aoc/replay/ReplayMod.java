@@ -36,6 +36,7 @@ public final class ReplayMod implements AocMod {
     private Setting<Boolean> filming;
     private Setting<Double> peaceDays, warDays;
     private Setting<Integer> maxPerSecond;
+    private Setting<String> warSpeed;
     private Setting<String> quality, fps, ffmpegPath, videoFolder;
 
     private volatile String ffmpeg;
@@ -53,7 +54,7 @@ public final class ReplayMod implements AocMod {
 
     @Override public String id() { return "replay"; }
     @Override public String name() { return "Replays"; }
-    @Override public String version() { return "2.0.0"; }
+    @Override public String version() { return "2.1.0"; }
     @Override public String author() { return "Age of Clicks Mod API"; }
 
     @Override
@@ -71,6 +72,9 @@ public final class ReplayMod implements AocMod {
         warDays = ctx.settings().decimal("war_days_per_second", "Film speed at war (game days per second)", 6.0, 1.0, 120.0,
                 "While your country or its alliance fights, the film slows to this as far as the game gives it frames: "
                         + "fully when you play at x1 or x2, about 10 days per second at x4, faster at x8 and x16.");
+        warSpeed = ctx.settings().choice("war_speed_limit", "Game speed during your own wars", "x2", List.of("off", "x1", "x2", "x4", "x8"),
+                "A film can only show what the game draws, so a war played at x16 is over in seconds in the film too. "
+                        + "While your own country is at war the game is held at this speed, and returns to yours afterwards. Off: never touch the game speed.");
         maxPerSecond = ctx.settings().integer("max_frames_per_second", "Film frames per real second (max)", 60, 2, 120,
                 "Each film frame draws the map once more; slow wars need many. Lower this if the game stutters while filming.");
         quality = ctx.settings().choice("video_quality", "Video resolution", "1080p", List.of("720p", "1080p", "1440p"),
@@ -103,6 +107,7 @@ public final class ReplayMod implements AocMod {
             case "1440p" -> 1440;
             default -> 1080;
         };
+        film.warSpeedLimit = warSpeed.get().equals("off") ? 0 : Integer.parseInt(warSpeed.get().substring(1));
         long t0 = System.nanoTime();
         film.beforeFrame(delta, ff, new File(videoFolder.get()), Integer.parseInt(fps.get()), height,
                 peaceDays.get().floatValue(), warDays.get().floatValue(), maxPerSecond.get());

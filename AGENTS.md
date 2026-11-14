@@ -96,6 +96,30 @@ classes as they load:
   Browser, loads the save, opens economy / diplomacy / army and a mod window, and writes
   screenshots plus the measured blocks (`UITEST` lines in the log). Run it on a copy of a save.
 
+### Game Improvements (built into the loader)
+- `Improvements` is a second built-in entry next to `LoaderMod` (id `improvements`, settings in
+  `mods/improvements/config.properties`), one toggle per improvement. Add new ones there.
+- `FrontNumbers`: per pair of countries at war, the markers of `WarManager.getFrontlineDecor()`
+  (classic combat only; `ownerColorKey`/`enemyColorKey`, map pixels y down) are averaged on screen
+  (`Hooks.mapToScreen`, public as `MapCamera.toScreen`); the number sits 7.5% of the screen height
+  behind its own flags, turned along the line between both sides' flags. Number = infantry +
+  artillery + tanks (`CountryState`, plain units) x this front's share of the country's flags.
+  Drawn after the frame, so it is scissored to the band between top bar and dock and skipped where
+  it would touch a HUD element or panel. Verified against save data (Austria 885,895 x 6/9 flags).
+- Performance, measured 2026-11-14 with Flight Recorder (Modern World save, x16): the game's heavy
+  work (WarManager peace/naval/encirclement, SDF borders, AI) already runs on background threads;
+  on the render thread 46% went to OUR replay `Recorder.writeFrame` (a full grid scan every 3 game
+  days = ~20 a second at x16). Now at most one sample per 0.3 s real time and no boxing per cell:
+  65-71 fps became 85-107. No safe win found inside the game itself yet, so there is no
+  performance switch. Profiling how-to: the launcher restarts itself for the heap
+  (`DesktopHeapChoice`, env `CGS_HEAP_RELAUNCHED`), so start the exe with `CGS_HEAP_RELAUNCHED=1`,
+  add `java-options=-XX:StartFlightRecording=settings=profile` to the cfg for the run (restore it),
+  and let the UI self-test write the recording on exit (the game's exit skips dumponexit).
+  The loader and every mod's `onLoad` also run in that outer launcher process.
+- UI self-test extras: `war=` (comma list of countries to attack, may be empty) plays at `speed`,
+  answers pop-ups, saves `war_N.png`, logs the front numbers and fps / game days per second;
+  `focus=<country>` centres the camera. It films too: delete the films and recordings it leaves.
+
 ### Mod Browser and catalog
 - `catalog/index.json` + the mod jars are tracked in git on purpose: the browser downloads them
   from raw.githubusercontent.com (loader setting `mod_catalog`, https only), checks SHA-256 and
@@ -144,6 +168,11 @@ from the nearest towns when none is known. Never key towns by name alone.
   read back and piped to ffmpeg; the game's own frame then paints over it. Not an FBO (no nested
   FBOs in this libGDX). World y = worldBounds.height minus map y.
 - An earlier version drew its own map and looked "jittery, blurry, pixelated". Don't go back.
+- A live capture cannot slow a war the player fast-forwards (owner's complaint 2026-11-14), so
+  `LiveFilm.limitWarSpeed` holds `GameManager.setPlaySpeed` at the setting `war_speed_limit`
+  (default x2) while the focus country itself is attacker or defender, and restores the player's
+  speed when the war ends. Verified: x16 asked, game stayed at x2 (9.7 days/s).
+- `Recorder` samples at most every 0.3 s of real time (it was the biggest cost on the render thread).
 - Political colours whatever the player's map mode: `renderCleanMapView` switches to POLITICAL and
   clears selection/hover, then restores. Territory colours fade by frame delta, so `FilmView` saves
   them, snaps with `updateLutColors(1000)` and restores; mesh fills lerp in

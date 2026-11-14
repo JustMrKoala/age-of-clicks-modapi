@@ -112,6 +112,10 @@ ctx.camera().setEdgeMargin(0.5f);   // scroll past the edges by half the screen 
 float z = ctx.camera().zoom();      // current zoom, larger = further out; 0 without a map
 ```
 
+`ctx.camera().toScreen(mapX, mapY)` gives where a map point (map pixels, y down) is on the player's
+screen, as `{x, y}` in the y-down window pixels of `Ui` and input events (null without a map): for
+your own labels and markers on the map.
+
 `ctx.camera().renderMapView(x, y, visibleHeight)` draws the game's own map (no interface) from another
 camera into the screen; use it in `beforeFrame`, where the game's frame paints over it afterwards, and read
 the pixels in between. `renderCleanMapView` does the same as a neutral documentary view: political colours,
