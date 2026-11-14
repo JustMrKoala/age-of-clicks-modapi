@@ -100,7 +100,17 @@ final class UiSelfTest {
             warSteps(map);
             return;
         }
-        at(5, 7f, () -> map.showUpgradesMenu(CGSUpgradesMenu.Mode.BUILDINGS));
+        at(5, 7f, () -> {
+            map.showUpgradesMenu(CGSUpgradesMenu.Mode.BUILDINGS);
+            // The Cities section, where mods add rows under the game's own "Found city" row.
+            try {
+                java.lang.reflect.Method pick = CGSUpgradesMenu.class.getDeclaredMethod("selectCategory", String.class);
+                pick.setAccessible(true);
+                pick.invoke(map.getUpgradesMenu(), "upg_block_cities");
+            } catch (ReflectiveOperationException e) {
+                Log.error("UITEST could not open the Cities section", e);
+            }
+        });
         at(6, 9.5f, () -> logAndShoot("economy"));
         at(7, 10.5f, map::showDiplomacyMenu);
         at(8, 13f, () -> logAndShoot("diplomacy"));

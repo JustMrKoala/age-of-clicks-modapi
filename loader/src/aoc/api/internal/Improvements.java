@@ -10,7 +10,8 @@ import aoc.api.settings.Setting;
  * is paused in multiplayer.
  */
 final class Improvements implements AocMod {
-    private Setting<Boolean> frontNumbers, zoomOut;
+    private Setting<Boolean> frontNumbers, zoomOut, bulkCitiesOn;
+    private aoc.api.internal.bulkcities.BulkCities bulkCities;
     private Setting<Double> zoomLimit, edgeMargin;
     private FrontNumbers numbers;
 
@@ -30,7 +31,7 @@ final class Improvements implements AocMod {
     @Override
     public void onLoad(ModContext ctx) {
         frontNumbers = ctx.settings().toggle("front_numbers", "Army numbers on the fronts", true,
-                "At war, each side's army on a front is written on its own side of the line (classic combat).");
+                "At war, each side's army on a front is written on its own land next to the front.");
         zoomOut = ctx.settings().toggle("zoom_out", "Zoom further out", true,
                 "Zoom further out of the map than the game allows, and scroll past its edges so border regions are reachable.");
         zoomLimit = ctx.settings().decimal("zoom_out_limit", "Zoom-out limit", 3.0, 1.0, 10.0,
@@ -39,12 +40,23 @@ final class Improvements implements AocMod {
                 "How far you can scroll beyond the map's edges, as a share of the screen. "
                         + "0 = the game's default, 0.5 = an edge can reach the middle of the screen.");
         ctx.settings().onChange(() -> applyZoom(ctx));
+        bulkCitiesOn = ctx.settings().toggle("bulk_cities", "Bulk Cities", true,
+                "Found many cities quickly: a Bulk Cities row in the Economy menu (Cities, under Found city). "
+                        + "Found-city mode stays on and every city is named for you; it can also fill your land with its real towns.");
+        bulkCities = new aoc.api.internal.bulkcities.BulkCities(bulkCitiesOn::get);
+        bulkCities.onLoad(ctx);
+    }
+
+    @Override
+    public void beforeFrame(ModContext ctx, float delta) {
+        if (bulkCitiesOn.get()) bulkCities.beforeFrame(ctx, delta);
     }
 
     @Override
     public void onGameReady(ModContext ctx) {
         // Applied here, not in onLoad: the camera limits need the game's map classes.
         applyZoom(ctx);
+        bulkCities.onGameReady(ctx);
     }
 
     private void applyZoom(ModContext ctx) {
@@ -56,6 +68,7 @@ final class Improvements implements AocMod {
 
     @Override
     public void render(ModContext ctx, float delta) {
+        if (bulkCitiesOn.get()) bulkCities.render(ctx, delta);
         if (!frontNumbers.get()) return;
         if (numbers == null) numbers = new FrontNumbers();
         numbers.render(delta);

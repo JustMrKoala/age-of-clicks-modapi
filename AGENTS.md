@@ -99,8 +99,13 @@ classes as they load:
 ### Game Improvements (built into the loader)
 - `Improvements` is a second built-in entry next to `LoaderMod` (id `improvements`, settings in
   `mods/improvements/config.properties`), one toggle per improvement. Add new ones there.
-- Zoom Out (owner's request 2026-11-14) is a toggle here since loader 0.7.0, no longer `mods/zoomout`;
-  `ModManager.discoverMods` deletes a leftover `mods/zoomout.jar` (both would set the camera limits).
+- Zoom Out (since loader 0.7.0) and Bulk Cities (since 0.9.0) are toggles here, no longer mods
+  (owner's request 2026-11-14: quality-of-life things belong in Game Improvements).
+  `ModManager.discoverMods` deletes a leftover `mods/zoomout.jar` / `mods/bulkcities.jar` (the old
+  jar would do everything a second time). Bulk Cities lives in `loader/.../internal/bulkcities/`
+  (`BulkCities` still has the AocMod callbacks; `Improvements` passes them on while the switch is
+  on, and its Economy row uses `Ui.addEconomyCityRow(..., when)`). Its settings moved to
+  `mods/improvements/config.properties`; old values in `mods/bulkcities/` are not carried over.
 - `FrontNumbers` (third version): everything about the place comes from the map. The visible map
   is sampled on a screen grid (step = screen height / 36) for who holds the land: the owner
   (`getOwnershipGrid()`), or the occupier (`getControlOwner()` != -1 with `getControlGrid()` >= 0.45,

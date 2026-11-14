@@ -3,7 +3,7 @@
 ## Install
 
 1. Close Age of Clicks.
-2. Run **AgeOfClicks-ModAPI-Setup-0.8.0.exe** (or unzip `AgeOfClicks-ModAPI-0.8.0.zip` and
+2. Run **AgeOfClicks-ModAPI-Setup-0.9.0.exe** (or unzip `AgeOfClicks-ModAPI-0.9.0.zip` and
    double-click `Setup.bat`). Windows SmartScreen may warn because the file is not signed:
    *More info > Run anyway*.
 3. The setup window finds the game through Steam. If it says *No Age of Clicks here*, click
@@ -94,7 +94,7 @@ Like every mod, it is off in multiplayer.
 
 ## Bulk Cities
 
-The bundled *Bulk Cities* mod founds many cities quickly. Click the game's own *Found City* button and
+*Bulk Cities* (part of Game Improvements) founds many cities quickly. Click the game's own *Found City* button and
 then the map: found-city mode stays on, so every click is a new city; right-click or Esc
 stops. You are not asked for names: each city takes the real town that lies at that spot (from the
 city lists of all the game's maps, about 17,000 towns), or, where none is known, a made-up name in the
@@ -102,7 +102,7 @@ style of the region's towns. The game's own rules and costs apply to every city.
 
 In the game's **Economy** menu, the Cities section has a *Bulk Cities* row right under *Found city*.
 It opens a window that founds the real towns of your land at their real places: 5, 20, or as many as
-you can afford. Settings (MODS > CODE MODS > *Bulk Cities*): name automatically or
+you can afford. Settings (MODS > CODE MODS > *Game Improvements*): name automatically or
 just fill in the dialog, keep founding after each city, prefer real names.
 
 ## After a Steam update
@@ -119,6 +119,8 @@ CODE MODS > *Game Improvements*.
 - **Zoom further out**: zoom further out of the map than the game allows (*Zoom-out limit*) and
   scroll past its edges (*Scroll past the edges*). This used to be the separate Zoom Out mod; the
   loader removes the old `zoomout.jar` by itself.
+- **Bulk Cities**: see below. It also used to be a separate mod; the old `bulkcities.jar` is
+  removed in the same way.
 
 If CODE MODS disappears from main menu > MODS, run Setup again and click Install / Update.
 

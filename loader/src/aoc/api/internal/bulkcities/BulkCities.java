@@ -1,4 +1,4 @@
-package aoc.bulkcities;
+package aoc.api.internal.bulkcities;
 
 import aoc.api.AocMod;
 import aoc.api.ModContext;
@@ -34,8 +34,16 @@ import java.util.concurrent.CompletableFuture;
  * lies at that spot (from the city lists of the game's other maps), else a name made up in the style
  * of the region's towns. A window can also found real towns at their real places across your land.
  * The game's own rules and costs apply to every city.
+ *
+ * <p>Part of Game Improvements (it was the separate Bulk Cities mod until loader 0.9.0): the
+ * loader's {@code Improvements} entry owns the switch and passes the callbacks on.
  */
-public final class BulkCitiesMod implements AocMod {
+public final class BulkCities implements AocMod {
+    /** Game Improvements switch for the whole feature. */
+    private final java.util.function.BooleanSupplier enabled;
+
+    public BulkCities(java.util.function.BooleanSupplier enabled) { this.enabled = enabled; }
+
 
     private ModContext ctx;
     private Setting<Boolean> autoName, keepFounding, realNames;
@@ -87,7 +95,7 @@ public final class BulkCitiesMod implements AocMod {
         // In the game's Economy menu, Cities section, right under its own "Found city" row.
         ctx.ui().addEconomyCityRow("Bulk Cities",
                 "Found many cities in a row, each named for you, or fill your land with its real towns.",
-                null, () -> "Open", this::openWindow);
+                null, () -> "Open", this::openWindow, enabled);
     }
 
     @Override

@@ -19,7 +19,12 @@ import java.util.function.Supplier;
  */
 public final class EconomyRows {
     /** One mod row. */
-    public record Spec(String name, String description, Supplier<String> chip, Supplier<String> button, Runnable onClick) {}
+    public record Spec(String name, String description, Supplier<String> chip, Supplier<String> button, Runnable onClick,
+                       java.util.function.BooleanSupplier shown) {
+        public Spec(String name, String description, Supplier<String> chip, Supplier<String> button, Runnable onClick) {
+            this(name, description, chip, button, onClick, () -> true);
+        }
+    }
 
     private static final String ROW = "ru.ius.david.cgs.menus.CGSUpgradesMenu$UpgradeRow";
     private static final List<Spec> SPECS = new CopyOnWriteArrayList<>();
@@ -52,6 +57,7 @@ public final class EconomyRows {
                 foundCityRow.setAccessible(true);
             }
             for (Spec s : SPECS) {
+                if (!s.shown().getAsBoolean()) continue;
                 Object row = foundCityRow.invoke(null, icon, s.name(), s.description());
                 ROWS.put(row, s);
                 rows.add(++at, row);

@@ -1,4 +1,4 @@
-package aoc.bulkcities;
+package aoc.api.internal.bulkcities;
 
 import java.util.ArrayList;
 import java.util.HashMap;

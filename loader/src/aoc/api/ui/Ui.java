@@ -113,6 +113,15 @@ public final class Ui implements InputProcessor {
         aoc.api.internal.EconomyRows.add(new aoc.api.internal.EconomyRows.Spec(name, description, chip, button, onClick));
     }
 
+    /**
+     * Like {@link #addEconomyCityRow(String, String, java.util.function.Supplier, java.util.function.Supplier, Runnable)},
+     * shown only while {@code when} is true (checked each time the game builds the menu).
+     */
+    public void addEconomyCityRow(String name, String description, java.util.function.Supplier<String> chip,
+                                  java.util.function.Supplier<String> button, Runnable onClick, BooleanSupplier when) {
+        aoc.api.internal.EconomyRows.add(new aoc.api.internal.EconomyRows.Spec(name, description, chip, button, onClick, when));
+    }
+
     /** Runs {@code action} when the key is pressed, even while typing; bind function keys, not letters. */
     public void bindKey(int keycode, Runnable action) { keys.put(keycode, action); }
 

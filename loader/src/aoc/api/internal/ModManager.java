@@ -91,10 +91,10 @@ public final class ModManager {
         }
         Arrays.sort(jars);
         for (File jar : jars) {
-            // Zoom Out was a separate mod until loader 0.7.0; it is part of Game Improvements now.
-            if (jar.getName().equalsIgnoreCase("zoomout.jar")) {
-                Log.info(jar.delete() ? "Removed zoomout.jar: Zoom Out is now part of Game Improvements"
-                        : "Skipped zoomout.jar: Zoom Out is now part of Game Improvements (delete the file)");
+            // Zoom Out (until loader 0.7.0) and Bulk Cities (until 0.9.0) were separate mods; they are part
+            // of Game Improvements now, and the old jar would do everything a second time.
+            if (jar.getName().equalsIgnoreCase("zoomout.jar") || jar.getName().equalsIgnoreCase("bulkcities.jar")) {
+                Log.info((jar.delete() ? "Removed " : "Skipped (delete the file) ") + jar.getName() + ": it is now part of Game Improvements");
                 continue;
             }
             try {

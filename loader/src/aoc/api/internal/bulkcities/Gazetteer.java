@@ -1,4 +1,4 @@
-package aoc.bulkcities;
+package aoc.api.internal.bulkcities;
 
 import com.badlogic.gdx.utils.JsonReader;
 import com.badlogic.gdx.utils.JsonValue;
