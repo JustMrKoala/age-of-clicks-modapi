@@ -10,7 +10,6 @@ fonts and sounds). It ships with these mods:
 | `mods/diplomacy` | Talk to any leader in plain language; an AI plays the leader and can agree to any catalog action |
 | `mods/replay` | Films every single player game with the game's own graphics and a cinematic camera; plays films in game |
 | `mods/bulkcities` | Found many cities in a row, named after the real town at that spot |
-| `mods/zoomout` | Lets the map camera zoom further out |
 
 Plus an online multiplayer layer on top of the game's own unfinished multiplayer: a dedicated
 server, a central lobby service and a MULTIPLAYER window in the main menu. Nothing goes through
@@ -106,11 +105,11 @@ The loader adds a **CODE MODS** button to the game's own **MODS** screen (main m
 index of scenario mods), next to its Back button. It lists every installed code mod with its name, version, author and
 description, and builds a settings form from what each mod declares. Its **Browse mods** button opens
 the **Mod Browser**: every mod in the catalog (`catalog/` in this repository: AI Diplomacy, Replays,
-Bulk Cities, Zoom Out), with Install, Update and Remove. Downloads are checked against the catalog's
+Bulk Cities), with Install, Update and Remove. Downloads are checked against the catalog's
 SHA-256 and load the next time the game starts.
 
 The loader also carries **Game Improvements** (its own entry in CODE MODS, one switch per
-improvement): for now army numbers written along the fronts at war.
+improvement): army numbers written along the fronts at war, and zooming further out of the map.
 
 Settings form:
 

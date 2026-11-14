@@ -40,6 +40,6 @@ jar, drop it in `<game>/mods/`, start the game, press F9 in a game: Italy gets 1
 
 ## Versions
 
-This documentation describes loader **0.6.0**, built against the game's `desktop-0.63.jar`. The
+This documentation describes loader **0.7.0**, built against the game's `desktop-0.63.jar`. The
 API lives in the `aoc.api` packages; everything in `aoc.api.internal` and `aoc.loader` is the
 loader's own machinery and can change without notice.

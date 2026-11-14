@@ -2,19 +2,15 @@
   "mods": [
     {"id": "bulkcities", "name": "Bulk Cities", "version": "1.0.0", "author": "Age of Clicks Mod API",
      "description": "Found many cities quickly: found-city mode stays on and every city is named for you, with the real town at that spot or a name in the region's style. Can also fill your land with its real towns.",
-     "file": "bulkcities.jar", "size": 24299, "loader": "0.6.0",
-     "sha256": "82deab783e6910892ea37c31a448bd4acd7f1bd68d69e69b883a6f89b70ab4cb"},
+     "file": "bulkcities.jar", "size": 24299, "loader": "0.7.0",
+     "sha256": "660afa8de5a8a975d634070e6fde017a35c894c97ba40c3c36b709c3eef102bc"},
     {"id": "diplomacy", "name": "AI Diplomacy", "version": "0.4.1", "author": "",
      "description": "Talk to any country's leader in your own words. An AI plays the leader from live game data and can agree to anything in the mod API's action catalog; deals happen when you accept them.",
-     "file": "diplomacy.jar", "size": 34659, "loader": "0.6.0",
-     "sha256": "5c63bdab29af93f2895286978ec85f0c8f01be72a6ad397411f413c43cd7b801"},
+     "file": "diplomacy.jar", "size": 34659, "loader": "0.7.0",
+     "sha256": "a88a21240b5c1ab4542f09d3e78ab1bd14fc5b036616ee3c0ad3e4a23da76041"},
     {"id": "replay", "name": "Replays", "version": "2.1.0", "author": "Age of Clicks Mod API",
      "description": "Films your single-player games with the game's own graphics from a cinematic camera that follows your country and its wars. Needs ffmpeg.",
-     "file": "replay.jar", "size": 86135, "loader": "0.6.0",
-     "sha256": "01889ae68ea91241135e927cc8d864de6ad82ebd1a6375b032b6d58b562ca358"},
-    {"id": "zoomout", "name": "Zoom Out", "version": "1.0.0", "author": "Age of Clicks Mod API",
-     "description": "Zoom further out of the map, and scroll past its edges so border regions are reachable.",
-     "file": "zoomout.jar", "size": 2384, "loader": "0.6.0",
-     "sha256": "af47aec8df661f588c2f8950eeb76a25725d0a174fdd52d66c7901d3050206e2"}
+     "file": "replay.jar", "size": 86135, "loader": "0.7.0",
+     "sha256": "41140609b896335c47e13f3f5fd07c0a56ddae13d8d009a109ff2c8de2e68527"}
   ]
 }

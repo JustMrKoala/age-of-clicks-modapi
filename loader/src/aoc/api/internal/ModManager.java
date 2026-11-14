@@ -91,6 +91,12 @@ public final class ModManager {
         }
         Arrays.sort(jars);
         for (File jar : jars) {
+            // Zoom Out was a separate mod until loader 0.7.0; it is part of Game Improvements now.
+            if (jar.getName().equalsIgnoreCase("zoomout.jar")) {
+                Log.info(jar.delete() ? "Removed zoomout.jar: Zoom Out is now part of Game Improvements"
+                        : "Skipped zoomout.jar: Zoom Out is now part of Game Improvements (delete the file)");
+                continue;
+            }
             try {
                 URLClassLoader cl = new URLClassLoader(new URL[]{jar.toURI().toURL()}, ModManager.class.getClassLoader());
                 for (AocMod mod : ServiceLoader.load(AocMod.class, cl)) {

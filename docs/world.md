@@ -104,7 +104,7 @@ Every `World` change marks the run as externally modified.
 
 ### Map camera
 
-`ctx.camera()` changes the map camera's limits (the bundled *Zoom Out* mod is built on it):
+`ctx.camera()` changes the map camera's limits (*Zoom further out* in Game Improvements is built on it):
 
 ```java
 ctx.camera().setZoomOutFactor(3f);  // zoom out three times further than the game allows (1..10)

@@ -26,7 +26,7 @@ final class UiSelfTest {
     private int step;
     private boolean inMap;
     private String shot;
-    private boolean speedSet;
+    private boolean speedSet, frontCam;
     private long fpsStart;
     private int fpsFrames, fpsDay;
 
@@ -129,6 +129,7 @@ final class UiSelfTest {
                 fpsDay = gm.getGameDays();
             }
             dismissDialogs(map);
+            if (p.getProperty("frontZoom") != null && clock > 11f && !frontCam) frontCam = lookAtFront(map, gm);
             // Once, and again after a pop-up paused the game: a mod may change the speed afterwards.
             if (gm.isGamePaused() || !speedSet) {
                 gm.setGamePaused(false);
@@ -149,6 +150,45 @@ final class UiSelfTest {
                     fpsFrames / seconds, (gm.getGameDays() - fpsDay) / seconds, seconds, gm.getPlaySpeed()));
             quit(null);
         });
+    }
+
+    /** {@code frontZoom=<zoom>}: puts the camera on the player's front (else any front) at that zoom. */
+    private boolean lookAtFront(MapScreen map, ru.ius.david.cgs.game.GameManager gm) {
+        try {
+            ru.ius.david.cgs.WarManager wm = gm.getWarManager();
+            int me = wm.getColorKeyByName(gm.getPlayerCountry().getName());
+            float x = 0, y = 0, ax = 0, ay = 0;
+            int n = 0, an = 0;
+            for (ru.ius.david.cgs.units.FrontlineDecor.Marker m : wm.getFrontlineDecor().getMarkers()) {
+                if (!m.alive) continue;
+                ax += m.x;
+                ay += m.y;
+                an++;
+                if (m.ownerColorKey != me && m.enemyColorKey != me) continue;
+                x += m.x;
+                y += m.y;
+                n++;
+            }
+            if (an == 0) return false;
+            if (n == 0) {
+                x = ax;
+                y = ay;
+                n = an;
+            }
+            java.lang.reflect.Field bounds = MapScreen.class.getDeclaredField("worldBounds"), target = MapScreen.class.getDeclaredField("targetZoom");
+            bounds.setAccessible(true);
+            target.setAccessible(true);
+            float zoom = Float.parseFloat(p.getProperty("frontZoom"));
+            com.badlogic.gdx.graphics.OrthographicCamera cam = Hooks.camera();
+            cam.position.set(x / n, ((com.badlogic.gdx.math.Rectangle) bounds.get(map)).height - y / n, cam.position.z);
+            cam.zoom = zoom;
+            target.setFloat(map, zoom);
+            Log.info("UITEST camera on the front at " + Math.round(x / n) + "," + Math.round(y / n) + ", zoom " + zoom);
+            return true;
+        } catch (ReflectiveOperationException e) {
+            Log.error("UITEST could not move the camera", e);
+            return true;
+        }
     }
 
     /** Answers the game's pop-ups (they pause the game) like the replay self-test does. */

@@ -99,13 +99,24 @@ classes as they load:
 ### Game Improvements (built into the loader)
 - `Improvements` is a second built-in entry next to `LoaderMod` (id `improvements`, settings in
   `mods/improvements/config.properties`), one toggle per improvement. Add new ones there.
-- `FrontNumbers`: per pair of countries at war, the markers of `WarManager.getFrontlineDecor()`
-  (classic combat only; `ownerColorKey`/`enemyColorKey`, map pixels y down) are averaged on screen
-  (`Hooks.mapToScreen`, public as `MapCamera.toScreen`); the number sits 7.5% of the screen height
-  behind its own flags, turned along the line between both sides' flags. Number = infantry +
-  artillery + tanks (`CountryState`, plain units) x this front's share of the country's flags.
-  Drawn after the frame, so it is scissored to the band between top bar and dock and skipped where
-  it would touch a HUD element or panel. Verified against save data (Austria 885,895 x 6/9 flags).
+- Zoom Out (owner's request 2026-11-14) is a toggle here since loader 0.7.0, no longer `mods/zoomout`;
+  `ModManager.discoverMods` deletes a leftover `mods/zoomout.jar` (both would set the camera limits).
+- `FrontNumbers`: per pair of countries at war. The flags of `WarManager.getFrontlineDecor()`
+  (classic combat only; `ownerColorKey`/`enemyColorKey`, map pixels y down = ownership grid cells)
+  only say WHERE the front is: the on-screen flags around the one nearest the screen centre.
+  Direction and sides come from the land: `survey` sums who holds the cells in a disc of 30% of
+  the screen height around that point (`getControlOwner()` where > 0, else `getOwnershipGrid()`);
+  the line between the two lands' centres is the normal, both numbers sit along it at least 11%
+  of the screen height from the middle, on a cell the side really holds, turned along the front.
+  The first version took the direction from both sides' flag centres: they stand on the same line,
+  so in a bulge the numbers turned 90 degrees and landed in third countries (owner's screenshot),
+  and it needed visible flags of BOTH sides, so numbers went missing. Now one side's flags are
+  enough (a side without flags there counts as one more front), thinned flags count, and a
+  pop-up no longer resets the fade. Number = infantry + artillery + tanks (`CountryState`, plain
+  units) x this front's share of the country's flags. Drawn after the frame: scissored to the band
+  between top bar and dock, skipped where it would touch a HUD element or panel (the game's
+  battle bubbles are map things and can still sit under a number).
+  `frontZoom=<zoom>` in the UI self-test puts the camera on the player's front.
 - Performance, measured 2026-11-14 with Flight Recorder (Modern World save, x16): the game's heavy
   work (WarManager peace/naval/encirclement, SDF borders, AI) already runs on background threads;
   on the render thread 46% went to OUR replay `Recorder.writeFrame` (a full grid scan every 3 game
