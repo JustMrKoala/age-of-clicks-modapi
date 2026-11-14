@@ -28,13 +28,31 @@ final class CentralServer {
     private final String host;
     private final String base;
 
-    /** {@code address} is "host" or "host:port" (default API port 54600). */
+    /** WebSocket address of the server's relay when matches go through a web tunnel, else null. */
+    private final String relay;
+
+    /**
+     * {@code address} is "host" or "host:port" (default API port 54600) for a server that is reached
+     * directly, or a web address ("https://play.example.org") for one behind a web tunnel: then the
+     * matches too go through that address, relayed over a WebSocket (see {@link TunnelRelay}).
+     */
     CentralServer(String address) {
         String a = address.trim();
+        if (a.startsWith("https://") || a.startsWith("http://")) {
+            while (a.endsWith("/")) a = a.substring(0, a.length() - 1);
+            host = java.net.URI.create(a).getHost();
+            base = a + "/api";
+            relay = (a.startsWith("https://") ? "wss://" : "ws://") + a.substring(a.indexOf("://") + 3) + "/ws/";
+            return;
+        }
         int colon = a.lastIndexOf(':');
         host = colon > 0 ? a.substring(0, colon) : a;
         base = "http://" + (colon > 0 ? a : a + ":54600") + "/api";
+        relay = null;
     }
+
+    /** The relay address for a match port, or null when matches are reached directly. */
+    String relayFor(int port) { return relay == null ? null : relay + port; }
 
     String host() { return host; }
 

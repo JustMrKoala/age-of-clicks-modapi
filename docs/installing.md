@@ -3,7 +3,7 @@
 ## Install
 
 1. Close Age of Clicks.
-2. Run **AgeOfClicks-ModAPI-Setup-0.7.1.exe** (or unzip `AgeOfClicks-ModAPI-0.7.1.zip` and
+2. Run **AgeOfClicks-ModAPI-Setup-0.8.0.exe** (or unzip `AgeOfClicks-ModAPI-0.8.0.zip` and
    double-click `Setup.bat`). Windows SmartScreen may warn because the file is not signed:
    *More info > Run anyway*.
 3. The setup window finds the game through Steam. If it says *No Age of Clicks here*, click
@@ -61,7 +61,9 @@ Code mods are switched off while a multiplayer game or lobby is active, for ever
 gets an advantage from them. Nothing goes through Steam's networking.
 
 The central server address is a setting: main menu > MODS > CODE MODS > *Age of Clicks Mod Loader* >
-*Central server*.
+*Central server*. It is either `host:port` for a server that is reached directly, or a web address
+such as `https://play.example.org` for a server behind a web tunnel; matches then go through that
+address too, so the server needs no open ports.
 
 ## AI Diplomacy key
 

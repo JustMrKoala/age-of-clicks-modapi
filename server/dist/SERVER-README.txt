@@ -35,6 +35,12 @@ Ports
   Home server:     forward both ports on your router to this machine.
   Virtual LAN (ZeroTier, Tailscale, Radmin VPN) needs no port forwarding.
 
+  Web tunnel (Cloudflare Tunnel and the like) needs no port forwarding either and keeps your
+  address private: point the tunnel's hostname at http://localhost:54600 (the lobby service's
+  port). Players then use https://<that hostname> as their central server. The lobby list and
+  the matches both go through it: the service relays each player's game traffic over a
+  WebSocket to the match on this machine. Direct access on the ports keeps working next to it.
+
 Run it in the background (Linux, no admin rights needed)
   ./start-background.sh        start; keeps running after you log out (log: server.log)
   ./stop-server.sh             stop

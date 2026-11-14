@@ -50,6 +50,8 @@ final class MultiplayerTestWindow {
     /** The central-server lobby this player joined (its match port; 0 for LAN / direct games). */
     private static volatile CentralServer joinedServer;
     private static volatile int joinedPort;
+    /** The local relay port the game connects to when the lobby is reached through a tunnel, else 0. */
+    private static volatile int joinedVia;
     private static volatile CentralServer.Lobby joinedLobby;
     private float sinceLobbyPoll = REFRESH_SECONDS;
     private final Label lobbyStatus = new Label(MultiplayerTestWindow::lobbyStatusText).font(Theme.Font.SMALL).center();
@@ -200,17 +202,33 @@ final class MultiplayerTestWindow {
     /** Joins a central-server lobby on {@code port}, or a direct host when {@code host} is given. */
     private void join(int port, String host) {
         saveName();
+        closeRelay();
+        String via = host == null ? server.relayFor(port) : null;
         String target = host != null ? host : server.host();
-        if (host == null) Hooks.setClientPorts(port, port);
+        if (via != null) {
+            // Behind a web tunnel: the game talks to a relay on this machine, which carries it to the server.
+            try {
+                relay = TunnelRelay.open(via);
+            } catch (Exception e) {
+                setStatus("Could not start the connection to " + target + ": " + e.getMessage(), true);
+                Log.error("Tunnel relay failed to start", e);
+                return;
+            }
+            Hooks.setClientPorts(relay.port(), relay.port());
+            target = "127.0.0.1";
+            Log.info("Joining through the tunnel: " + via + " via local port " + relay.port());
+        } else if (host == null) Hooks.setClientPorts(port, port);
         else Hooks.setClientPorts(54555, 54777);
         joinedServer = host == null ? server : null;
         joinedPort = host == null ? port : 0;
+        joinedVia = via != null ? relay.port() : 0;
         joinedLobby = null;
         sinceLobbyPoll = REFRESH_SECONDS;
-        setStatus("Connecting to " + target + "...", false);
+        setStatus("Connecting to " + (via != null ? server.host() : target) + "...", false);
+        String lookup = target;
         new Thread(() -> {
             try {
-                InetAddress addr = InetAddress.getByName(target);
+                InetAddress addr = InetAddress.getByName(lookup);
                 Gdx.app.postRunnable(() -> {
                     try {
                         showLobby();
@@ -222,7 +240,7 @@ final class MultiplayerTestWindow {
                     }
                 });
             } catch (Exception e) {
-                setStatus("Could not find " + target + ".", true);
+                setStatus("Could not find " + lookup + ".", true);
             }
         }, "aoc-mp-lookup").start();
     }
@@ -256,6 +274,14 @@ final class MultiplayerTestWindow {
             pendingJoin = null;
             Log.error("Join failed", t);
         }
+    }
+
+    private static TunnelRelay relay;
+
+    private static void closeRelay() {
+        TunnelRelay r = relay;
+        relay = null;
+        if (r != null) r.close();
     }
 
     private void joinAddress() {
@@ -334,7 +360,8 @@ final class MultiplayerTestWindow {
      * session belongs to the lobby screen.
      */
     static boolean inCentralLobby() {
-        if (joinedPort == 0 || Hooks.clientTcpPort() != joinedPort) return false;
+        // Through a tunnel the game is connected to the relay's local port, not to the lobby's own port.
+        if (joinedPort == 0 || Hooks.clientTcpPort() != (joinedVia != 0 ? joinedVia : joinedPort)) return false;
         try {
             if (!(Gdx.app.getApplicationListener() instanceof cgsGame g)) return false;
             if (!(g.getScreen() instanceof ru.ius.david.cgs.MultiplayerLobbyScreen lobby)) return false;

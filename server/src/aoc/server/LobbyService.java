@@ -64,6 +64,7 @@ public final class LobbyService {
     }
 
     private final String serverName;
+    private final int internalPort;
     private final int apiPort, poolFirst, poolSize, maxPlayers, cooldown, idleTimeout;
     private final String memory, java, gameJar;
     private final List<Scenario> scenarios = new ArrayList<>();
@@ -75,6 +76,7 @@ public final class LobbyService {
     private LobbyService(Properties p) {
         serverName = p.getProperty("server_name", "Age of Clicks central server").trim();
         apiPort = Integer.parseInt(p.getProperty("port", "54600").trim());
+        internalPort = Integer.parseInt(p.getProperty("internal_port", String.valueOf(apiPort - 1)).trim());
         poolFirst = Integer.parseInt(p.getProperty("pool_first_port", "54601").trim());
         poolSize = Integer.parseInt(p.getProperty("pool_size", "2").trim());
         maxPlayers = Integer.parseInt(p.getProperty("max_players", "8").trim());
@@ -121,7 +123,14 @@ public final class LobbyService {
         lobbyDir.mkdirs();
         logDir.mkdirs();
         for (File old : lobbyDir.listFiles()) old.delete();
-        HttpServer http = HttpServer.create(new InetSocketAddress(apiPort), 32);
+        // The API itself listens on this machine only; the gateway on the public port passes requests
+        // on to it and relays WebSocket connections (/ws/<match port>) to running matches, so the
+        // whole service also works through a web tunnel (see Gateway).
+        HttpServer http = HttpServer.create(new InetSocketAddress("127.0.0.1", internalPort), 32);
+        new Gateway(apiPort, internalPort, port -> {
+            for (Lobby l : lobbies.values()) if (l.port == port) return true;
+            return false;
+        }).start();
         http.setExecutor(Executors.newFixedThreadPool(4));
         http.createContext("/api/", this::handle);
         http.start();
@@ -189,7 +198,9 @@ public final class LobbyService {
     }
 
     private synchronized void create(HttpExchange ex) throws Exception {
-        String ip = ex.getRemoteAddress().getAddress().getHostAddress();
+        // The gateway says who really asks (through a tunnel every request comes from this machine).
+        String ip = ex.getRequestHeaders().getFirst("X-Aoc-Client");
+        if (ip == null) ip = ex.getRemoteAddress().getAddress().getHostAddress();
         Long last = lastCreate.get(ip);
         if (last != null && System.currentTimeMillis() - last < cooldown * 1000L) {
             send(ex, 429, error("Please wait a moment before creating another lobby."));

@@ -224,6 +224,20 @@ from the nearest towns when none is known. Never key towns by name alone.
   (`/api/info`, `/api/lobbies`, POST create, POST start with `X-Lobby-Token`), one
   DedicatedServer per lobby on pool ports, started with `-javaagent:aoc-server.jar -Daoc.port=N`
   (`PortAgent` rewrites the game's compiled-in ports).
+- Web tunnel (Cloudflare Tunnel): a tunnel carries web traffic only, the game speaks plain TCP
+  and UDP. So the lobby service's public port is `Gateway` (raw sockets): ordinary requests are
+  piped to the API, which now listens on loopback (`internal_port`, default port - 1, with the
+  caller's address in `X-Aoc-Client`, from `CF-Connecting-IP` when the request came from this
+  machine); a WebSocket request for `/ws/<match port>` (running matches only) becomes a relay with
+  its own TCP connection and UDP socket to that match. The loader's `TunnelRelay` is the other
+  end: the game connects to 127.0.0.1 on one local port (TCP and UDP), each binary message is
+  `'T'` + stream bytes or `'U'` + one datagram. `CentralServer` takes "host[:port]" (direct) or
+  "https://name" (API and matches through that address). `inCentralLobby` compares the game's
+  port with the relay's local port then (`joinedVia`). Verified 2026-11-14: two headless
+  TestPlayers through stand-alone relays PASS (days 1 -> 206), and the real client's
+  `MultiplayerSelfTest` PASS (days 1 -> 81). Stand-alone relay for tests:
+  `java -cp aoc-loader.jar;desktop-0.63.jar aoc.api.internal.TunnelRelay wss://name/ws/<port>`,
+  then `TestPlayer 127.0.0.1` with `-javaagent:aoc-server.jar -Daoc.port=<local port>`.
 - Joining from the loader window: `showMultiplayerLobby()` is a deferred fade and the lobby
   screen's `show()` resets to MENU, so `MultiplayerTestWindow` waits for the lobby screen before
   calling its private `onJoinRoom`. The name goes through `SettingsManager.setPlayerName`.

@@ -5,6 +5,7 @@ server_name=Age of Clicks central server
 
 # Public API port (players' games talk to this) and the match ports (one per running lobby,
 # TCP and UDP). Forward all of them on the router: python3 upnp-ports.py open
+# Behind a web tunnel nothing needs forwarding: point the tunnel at this port.
 port=54600
 pool_first_port=54601
 pool_size=2
