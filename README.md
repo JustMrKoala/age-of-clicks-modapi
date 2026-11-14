@@ -3,7 +3,9 @@
 A Java agent mod loader for Age of Clicks (Steam)
 with three APIs: **actions** (anything a country can do), **world** (cities, territory,
 governments, events) and **UI** (windows and widgets drawn with the game's own panels, buttons,
-fonts and sounds). It ships with these mods:
+fonts and sounds). Players: get the installer from the
+[latest release](https://github.com/JustMrKoala/age-of-clicks-modapi/releases/latest); see
+[Installing](docs/installing.md). It ships with these mods:
 
 | Mod | What it does |
 |---|---|

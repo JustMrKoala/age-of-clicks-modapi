@@ -3,8 +3,9 @@
 ## Install
 
 1. Close Age of Clicks.
-2. Run **AgeOfClicks-ModAPI-Setup-0.9.0.exe** (or unzip `AgeOfClicks-ModAPI-0.9.0.zip` and
-   double-click `Setup.bat`). Windows SmartScreen may warn because the file is not signed:
+2. Download **AgeOfClicks-ModAPI-Setup-0.9.0.exe** from the
+   [latest release](https://github.com/JustMrKoala/age-of-clicks-modapi/releases/latest) and run it
+   (or unzip `AgeOfClicks-ModAPI-0.9.0.zip` and double-click `Setup.bat`). Windows SmartScreen may warn because the file is not signed:
    *More info > Run anyway*.
 3. The setup window finds the game through Steam. If it says *No Age of Clicks here*, click
    **Browse...** and pick the game folder (Steam: right-click Age of Clicks > *Manage* >
