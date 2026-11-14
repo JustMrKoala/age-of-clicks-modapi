@@ -154,14 +154,30 @@ from the nearest towns when none is known. Never key towns by name alone.
   screen's `show()` resets to MENU, so `MultiplayerTestWindow` waits for the lobby screen before
   calling its private `onJoinRoom`. The name goes through `SettingsManager.setPlayerName`.
 - The lobby has no Ready button (players get ready in the in-map country pick). Matches start on
-  player count; `DedicatedServer` keeps the world paused until every guest picked a country, and
-  marks its own entry ready with colour key -2. Custom maps must exist on every client.
+  player count, or earlier when the lobby's creator presses "Start the match now": a loader HUD
+  panel over the game's lobby screen that also shows "N of M players". The game's own Start button
+  belongs to the host, which is the server. `cgsGame.getActiveMultiplayerManager()` stays null until
+  a match starts; in the lobby the session is `MultiplayerLobbyScreen.getMultiplayerManager()`
+  (private field `mode` = `IN_LOBBY`). Code mods are paused there too.
+- The game's clock: `GameServer` ticks on its own timer (`tickAccumulator` against
+  `gameSettings.gameSpeed`) and never reads `GameManager.isGamePaused`, so `setGamePaused(true)`
+  does not stop it. `DedicatedServer` zeroes `tickAccumulator` before every update from the start
+  until every guest is ready with a country (`holdTicks`).
+- Clients leave the pick menu only when EVERY lobby entry is ready with a colour key other than -1,
+  so the server marks its own entry ready with key -2. The creator's "Start without waiting" (same
+  start endpoint) gives each guest who has not picked a random free country (the pick menu's own
+  filter: `originalPixels > 0` and a name), marks it ready and rebroadcasts the lobby;
+  `GameServer.ensurePlayersRegistered` registers it, and the client's MapScreen takes its colour key
+  from the lobby state ("BUG-10 fix" path). Custom maps must exist on every client.
 - Bandwidth: the game sends a FULL world snapshot to every player every second (about 2 MB on
   Modern World) and KryoNet kills the match when a 4 MB buffer fills. `NetGuard` throttles
   snapshots (`aoc.snapshot_seconds`=5), skips backed up connections and closes failing ones;
   buffers are 16 MB on both sides.
-- Status: verified with headless test players and one real client joining a lobby. Not yet
-  verified: a full match between two real game clients through the MULTIPLAYER window.
+- Status: in game (self-test, one real client plus a headless player) the start panel shows, the
+  early start works, and after picking a country and pressing Ready the client leaves the pick menu
+  and plays. Headless: the clock holds at day 1 while a guest has not picked, and "Start without
+  waiting" gives that guest a country. Not yet verified: two real game clients in one match, and a
+  real client that did not pick taking over the country it was given.
 
 ## Testing
 
@@ -184,11 +200,18 @@ the test again:
 - Replay film: `<game>/mods/replay/selftest.properties` (`SelfTest`): loads `saves/<save>`
   (use a copy), runs at `speed`, can switch map `modes`, `followWar`, `film=false`/`encode=false`
   baselines, logs fps and pacing, dumps PNG frames to `mods/replay/selftest/`, then quits.
-- Multiplayer: `<game>/mods/aoc-loader/mptest.properties` (`MultiplayerSelfTest`).
+- Multiplayer: `<game>/mods/aoc-loader/mptest.properties` (`MultiplayerSelfTest`): creates a
+  lobby on the central server (`scenario`, `needed`), waits `waitPlayers` seconds, checks the start
+  panel, presses "Start the match now", then either picks a free country and presses Ready
+  (`pick=true`) or presses "Start without waiting" unpicked (`pick=false`), plays `seconds`, saves
+  screenshots to `mods/aoc-loader/mptest/` and quits. A second player can be a headless
+  `aoc.server.TestPlayer` started with `-javaagent:build/aoc-server.jar -Daoc.port=<lobby port>`;
+  add `-Daoc.pick=false` for a player who never picks.
 
 ## Open work
 
-- A real two-client match through main menu > MULTIPLAYER.
+- A real two-client match through main menu > MULTIPLAYER, and "Start without waiting" with a
+  real client that has not picked.
 - Click through the Setup window by hand (scripts pass on a fake folder).
 - Save AI Diplomacy conversations with the game.
 - A film-own occupation layer for Replays.

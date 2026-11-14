@@ -21,6 +21,9 @@ public final class TestPlayer {
     private static volatile boolean started;
     private static volatile boolean loaded;
     private static volatile boolean hostLost;
+    /** -Daoc.pick=false: stay unpicked, like a player who is away (tests "Start without waiting"). */
+    private static final boolean PICKS = !"false".equals(System.getProperty("aoc.pick"));
+    private static volatile String lobbyCountry;
 
     public static void main(String[] args) throws Exception {
         if (args.length < 1) {
@@ -48,6 +51,12 @@ public final class TestPlayer {
             public void onLobbyUpdated(NetworkProtocol.LobbyState s) {
                 DedicatedServer.log("Lobby: " + (s.players == null ? 0 : s.players.size()) + " in lobby incl. host, scenario "
                         + s.scenarioPath + (s.gameStarted ? ", started" : ""));
+                if (s.players == null) return;
+                for (NetworkProtocol.PlayerInfo p : s.players) {
+                    if (p.playerId != mp.getLocalPlayerId() || p.selectedCountryName == null || p.selectedCountryName.equals(lobbyCountry)) continue;
+                    lobbyCountry = p.selectedCountryName;
+                    DedicatedServer.log("The lobby lists me as " + lobbyCountry + (p.ready ? ", ready" : ""));
+                }
             }
 
             @Override
@@ -65,6 +74,10 @@ public final class TestPlayer {
                         mp.setGameManager(gm);
                         loaded = true;
                         DedicatedServer.log("World loaded: " + gm.getWorldCountries().size() + " countries");
+                        if (!PICKS) {
+                            DedicatedServer.log("Not picking a country (aoc.pick=false)");
+                            return;
+                        }
                         // Like a real player in the game's pick menu: choose a country, then Ready.
                         List<String> names = new java.util.ArrayList<>();
                         for (ru.ius.david.cgs.game.CountryState s : gm.getWorldCountries().values()) names.add(s.getName());
