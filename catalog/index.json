@@ -2,11 +2,11 @@
   "mods": [
     {"id": "diplomacy", "name": "AI Diplomacy", "version": "0.4.1", "author": "",
      "description": "Talk to any country's leader in your own words. An AI plays the leader from live game data and can agree to anything in the mod API's action catalog; deals happen when you accept them.",
-     "file": "diplomacy.jar", "size": 34659, "loader": "0.9.0",
-     "sha256": "6bbbdc6135f126c766bb366d42dc77961fb5b65ed2226a8c700d787ee5d2124c"},
-    {"id": "replay", "name": "Replays", "version": "2.1.0", "author": "Age of Clicks Mod API",
+     "file": "diplomacy.jar", "size": 34659, "loader": "0.9.1",
+     "sha256": "875d096777a6fc436f2db3ff7b2eeb58067662dc7838ce817ec732d1f5b324e4"},
+    {"id": "replay", "name": "Replays", "version": "2.2.0", "author": "Age of Clicks Mod API",
      "description": "Films your single-player games with the game's own graphics from a cinematic camera that follows your country and its wars. Needs ffmpeg.",
-     "file": "replay.jar", "size": 86135, "loader": "0.9.0",
-     "sha256": "183358d434eaf561583bacc651fac1b8ed0a34edaa6a959affa01cbd744539b5"}
+     "file": "replay.jar", "size": 86911, "loader": "0.9.1",
+     "sha256": "fba4cea94cd508489ff1bbb043f3d7f2d61969ef2697ea3a64071cc8966f4e25"}
   ]
 }

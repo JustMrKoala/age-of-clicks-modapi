@@ -178,19 +178,57 @@ final class LiveFilm {
         float allowed = sinceCapture * Math.max(1, maxPerSec);
         boolean overBudget = budgetMs <= 0;
         if (selfTest != null) selfTest.pacing(delta, war, owed < 1f, allowed < 1f, overBudget, gameTime);
+        stats(delta, war, gameTime, owed >= 1f && allowed < 1f, owed >= 1f && allowed >= 1f && overBudget, perFrame, fps);
         if (owed < 1f || allowed < 1f || overBudget) return;
         int n = 1;
         if (war) n = (int) Math.min(Math.min(owed, allowed), Math.min(MAX_PER_GAME_FRAME, 1f + budgetMs / Math.max(1f, captureMs)));
         // Keep the remainder, so the cap is met evenly whatever the game's frame rate.
         sinceCapture = Math.max(0f, Math.min(sinceCapture - n / (float) Math.max(1, maxPerSec), 1f / Math.max(1, maxPerSec)));
         filmDay += n * perFrame;
-        if (gameTime - filmDay > perFrame) filmDay = gameTime - perFrame; // too far behind: skip ahead
+        if (gameTime - filmDay > perFrame) {
+            statSkippedDays += gameTime - perFrame - filmDay;
+            filmDay = gameTime - perFrame; // too far behind: skip ahead
+        }
         for (int i = 0; i < n; i++) {
             long t0 = System.nanoTime();
             testNanos = 0;
             capture(st, fps, n);
             budgetMs -= (System.nanoTime() - t0 - testNanos) / 1e6f;
         }
+    }
+
+    private float statClock, statFirstDay = Float.NaN, statSkippedDays, statWarClock;
+    private int statGameFrames, statCapLimited, statBudgetLimited, statCaptures0 = -1, statDropped0;
+
+    /**
+     * Every 20 seconds of filming, one log line on how the film keeps up: without it nobody can tell
+     * afterwards why a film came out faster than its setting (too few captures, and which limit held them back).
+     */
+    private void stats(float delta, boolean war, float gameTime, boolean capLimited, boolean budgetLimited, float perFrame, int fps) {
+        if (Float.isNaN(statFirstDay)) statFirstDay = gameTime;
+        if (statCaptures0 < 0) {
+            statCaptures0 = captures;
+            statDropped0 = dropped;
+        }
+        statClock += delta;
+        if (war) statWarClock += delta;
+        statGameFrames++;
+        if (capLimited) statCapLimited++;
+        if (budgetLimited) statBudgetLimited++;
+        if (statClock < 20f) return;
+        int made = captures - statCaptures0;
+        float days = gameTime - statFirstDay;
+        ctx.log(String.format(java.util.Locale.ROOT,
+                "Film pace over %.0f s (%.0f s at war): game %.0f fps, %.1f game days/s; %d film frames (%.1f/s, %.1f ms each), "
+                        + "so %.1f game days per film second (setting %.1f); %.0f days skipped; held back %d frames by the per-second cap, %d by the time budget; %d dropped (encoder behind)",
+                statClock, statWarClock, statGameFrames / statClock, days / statClock, made, made / statClock, captureMs,
+                made == 0 ? 0f : days / (made / (float) fps),
+                perFrame * fps, statSkippedDays, statCapLimited, statBudgetLimited, dropped - statDropped0));
+        statClock = statWarClock = statSkippedDays = 0;
+        statGameFrames = statCapLimited = statBudgetLimited = 0;
+        statFirstDay = gameTime;
+        statCaptures0 = captures;
+        statDropped0 = dropped;
     }
 
     private int testFocus = -1;

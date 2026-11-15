@@ -196,6 +196,21 @@ from the nearest towns when none is known. Never key towns by name alone.
   (default x2) while the focus country itself is attacker or defender, and restores the player's
   speed when the war ends. Verified: x16 asked, game stayed at x2 (9.7 days/s).
 - `Recorder` samples at most every 0.3 s of real time (it was the biggest cost on the render thread).
+- Map mode trap (owner's report 2026-11-14: wars filmed at x1 came out several times too fast and
+  choppy; in their film 39 game days per film second instead of 6). `TerritoryRenderer` compares the
+  map mode with `lastRenderedMapMode` every frame and on a change invalidates EVERY baked chunk
+  (occupation hatching, naval, integration, lease) and bakes them again. The film's switch to
+  POLITICAL and back made that happen on every film frame: in the Military map mode the game fell
+  from 125 to 15 fps while filming, and with at most 2 film frames per game frame the film got
+  far too few frames. `FilmView` now adds a million to the renderer's `modeChangeDebounceFrames`
+  for the pass (the renderer skips the check while it runs) and puts the old value back. Measured
+  on the owner's save, x1, 60 fps video: Military mode 146 fps and 6.2 days per film second
+  (setting 6), player-only mode 170 fps.
+- `LiveFilm` logs a "Film pace" line every 20 s of filming (game fps, days/s, film frames/s, ms per
+  frame, days per film second vs the setting, what held frames back). Read it first when a film
+  looks too fast.
+- Dev self-tests now delete their trigger file when they start: on 2026-11-14 a usage limit cut a
+  session short with `uitest.properties` in place and the owner's next game ran the test.
 - Political colours whatever the player's map mode: `renderCleanMapView` switches to POLITICAL and
   clears selection/hover, then restores. Territory colours fade by frame delta, so `FilmView` saves
   them, snaps with `updateLutColors(1000)` and restores; mesh fills lerp in

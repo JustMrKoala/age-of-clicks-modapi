@@ -31,8 +31,11 @@ final class SelfTest {
     private int playerShots;
     private final java.util.Set<String> switched = new java.util.HashSet<>();
 
+    private File trigger;
+
     private SelfTest(ModContext ctx, File cfg) throws Exception {
         this.ctx = ctx;
+        this.trigger = cfg;
         try (InputStream in = new FileInputStream(cfg)) {
             p.load(in);
         }
@@ -119,6 +122,12 @@ final class SelfTest {
 
     /** Called after every game frame. */
     void tick(float delta, LiveFilm film) {
+        // One run per trigger file (a test left armed would take over the player's next game). Here and
+        // not when loading: mods are also loaded in the launcher process that only restarts the game.
+        if (trigger != null) {
+            trigger.delete();
+            trigger = null;
+        }
         clock += delta;
         ru.ius.david.cgs.MapScreen map = ru.ius.david.cgs.MapScreen.getActiveInstance();
         switch (step) {

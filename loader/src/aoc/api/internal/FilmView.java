@@ -116,7 +116,7 @@ final class FilmView {
     private static final class Saved {
         MapModeManager.MapMode mode;
         boolean growth, deposits, colonies, disableHighlight, onlySelected, brush;
-        int selectTarget, rallyOwner;
+        int selectTarget, rallyOwner, chunkDebounce = Integer.MIN_VALUE;
         Object rally;
         double fxClock;
         float fxStep;
@@ -144,6 +144,20 @@ final class FilmView {
         s.divisions = take(map, "selectedDivisions");
         s.strokeX = take(map, "defenceStrokeX");
         s.strokeY = take(map, "defenceStrokeY");
+        // The renderer throws away every baked occupation chunk when it sees the map mode change, and
+        // bakes them again. The film's switch to the political mode and back made it do that on every
+        // film frame: in the Military map mode the game dropped from 125 to 15 fps while filming (and
+        // the film, held to two frames per game frame, came out several times too fast). The renderer
+        // skips that check while its own debounce counter runs, so the film keeps it running.
+        try {
+            Object tr = field(map, "territoryRenderer").get(map);
+            if (tr != null) {
+                s.chunkDebounce = field(tr, "modeChangeDebounceFrames").getInt(tr);
+                field(tr, "modeChangeDebounceFrames").setInt(tr, s.chunkDebounce + 1_000_000);
+            }
+        } catch (ReflectiveOperationException | RuntimeException e) {
+            s.chunkDebounce = Integer.MIN_VALUE;
+        }
         s.colors = snapColours(map);
         s.polygonColors = polygonColours(map, null);
         try {
@@ -173,6 +187,14 @@ final class FilmView {
         give(map, "selectedDivisions", s.divisions);
         give(map, "defenceStrokeX", s.strokeX);
         give(map, "defenceStrokeY", s.strokeY);
+        if (s.chunkDebounce != Integer.MIN_VALUE) {
+            try {
+                Object tr = field(map, "territoryRenderer").get(map);
+                if (tr != null) field(tr, "modeChangeDebounceFrames").setInt(tr, s.chunkDebounce);
+            } catch (ReflectiveOperationException | RuntimeException ignored) {
+                // field missing in another game version
+            }
+        }
         restoreColours(map, s.colors);
         polygonColours(map, s.polygonColors);
         try {

@@ -46,7 +46,10 @@ final class UiSelfTest {
         try {
             Log.info("UITEST active: " + cfg);
             active = true;
-            return new UiSelfTest(cfg, new File(gameDir, "mods/aoc-loader/uitest"));
+            UiSelfTest test = new UiSelfTest(cfg, new File(gameDir, "mods/aoc-loader/uitest"));
+            // One run per trigger file: a test left armed would take over the player's next game.
+            cfg.delete();
+            return test;
         } catch (Exception e) {
             Log.error("UITEST config unreadable", e);
             return null;
@@ -127,6 +130,10 @@ final class UiSelfTest {
         at(5, 7f, () -> {
             String me = gm.getPlayerCountry().getName();
             if (p.getProperty("focus") != null) map.focusCountryByName(p.getProperty("focus"));
+            // mapMode=PLAYER_ONLY: the player's map mode, as the map-mode buttons set it.
+            if (p.getProperty("mapMode") != null) {
+                ru.ius.david.cgs.MapModeManager.getInstance().setMapMode(ru.ius.david.cgs.MapModeManager.MapMode.valueOf(p.getProperty("mapMode")));
+            }
             if (p.getProperty("zoom") != null && Hooks.camera() != null) Hooks.camera().zoom = Float.parseFloat(p.getProperty("zoom"));
             for (String target : p.getProperty("war").split(",")) {
                 if (target.isBlank()) continue;

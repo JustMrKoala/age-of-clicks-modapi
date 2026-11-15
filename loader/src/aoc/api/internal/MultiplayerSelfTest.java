@@ -49,7 +49,10 @@ final class MultiplayerSelfTest {
         if (!cfg.isFile()) return null;
         try {
             Log.info("MPTEST active: " + cfg);
-            return new MultiplayerSelfTest(cfg, new File(gameDir, "mods/aoc-loader/mptest"));
+            MultiplayerSelfTest test = new MultiplayerSelfTest(cfg, new File(gameDir, "mods/aoc-loader/mptest"));
+            // One run per trigger file: a test left armed would take over the player's next game.
+            cfg.delete();
+            return test;
         } catch (Exception e) {
             Log.error("MPTEST config unreadable", e);
             return null;

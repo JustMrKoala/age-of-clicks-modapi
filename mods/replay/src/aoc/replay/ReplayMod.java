@@ -54,7 +54,7 @@ public final class ReplayMod implements AocMod {
 
     @Override public String id() { return "replay"; }
     @Override public String name() { return "Replays"; }
-    @Override public String version() { return "2.1.0"; }
+    @Override public String version() { return "2.2.0"; }
     @Override public String author() { return "Age of Clicks Mod API"; }
 
     @Override
