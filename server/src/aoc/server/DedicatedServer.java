@@ -39,7 +39,12 @@ public final class DedicatedServer {
 
     private final String name;
     private final String scenario;
-    private final int minPlayers;
+    /** Players needed for the match to start by itself; 0 = only when the creator starts it. The creator can change it. */
+    private volatile int minPlayers;
+    /** Name of the player who created the lobby; the lobby shows them as host. Null = the first to join. */
+    private final String hostPlayer;
+    /** The server's own lobby entry (it hosts as a player); -1 until connected. */
+    private volatile int serverId = -1;
     private final boolean requireReady;
     private final boolean autoStart;
     private final int startSpeed;
@@ -69,14 +74,16 @@ public final class DedicatedServer {
 
     private DedicatedServer(Properties p) {
         // -Daoc.<key>=... overrides server.properties; the lobby service starts matches that way.
-        for (String key : new String[]{"name", "scenario", "min_players", "require_ready", "auto_start", "speed", "idle_timeout"}) {
+        for (String key : new String[]{"name", "scenario", "host_player", "min_players", "require_ready", "auto_start", "speed", "idle_timeout"}) {
             String v = System.getProperty("aoc." + key);
             if (v != null) p.setProperty(key, v);
         }
         name =p.getProperty("name", "Age of Clicks server").trim();
         String s = p.getProperty("scenario", "scenarios/1936/").trim().replace('\\', '/');
         scenario = s.endsWith("/") ? s : s + "/";
-        minPlayers = Math.max(1, Integer.parseInt(p.getProperty("min_players", "2").trim()));
+        minPlayers = Math.max(0, Integer.parseInt(p.getProperty("min_players", "2").trim()));
+        String hp = p.getProperty("host_player", "").trim();
+        hostPlayer = hp.isEmpty() ? null : hp;
         requireReady = Boolean.parseBoolean(p.getProperty("require_ready", "true").trim());
         autoStart = Boolean.parseBoolean(p.getProperty("auto_start", "true").trim());
         startSpeed = Integer.parseInt(p.getProperty("speed", "1").trim());
@@ -115,6 +122,7 @@ public final class DedicatedServer {
             String cmd;
             while ((cmd = commands.poll()) != null) handle(cmd.trim());
             if (holdTicks) holdClock();
+            relabelHost();
             mp.update(0.05f);
             Thread.sleep(50);
             long now = System.currentTimeMillis();
@@ -181,13 +189,13 @@ public final class DedicatedServer {
         List<NetworkProtocol.PlayerInfo> out = new ArrayList<>();
         NetworkProtocol.LobbyState l = lobby;
         if (l == null || l.players == null) return out;
-        for (NetworkProtocol.PlayerInfo p : l.players) if (!p.isHost) out.add(p);
+        for (NetworkProtocol.PlayerInfo p : l.players) if (p.playerId != serverId) out.add(p);
         return out;
     }
 
     private void maybeStart() {
         NetworkProtocol.LobbyState l = lobby;
-        if (!autoStart || starting || l == null || l.gameStarted) return;
+        if (!autoStart || minPlayers <= 0 || starting || l == null || l.gameStarted) return;
         List<NetworkProtocol.PlayerInfo> g = guests();
         if (g.size() < minPlayers) return;
         if (requireReady && !g.stream().allMatch(p -> p.ready)) return;
@@ -204,7 +212,7 @@ public final class DedicatedServer {
         if (gs == null) return;
         boolean changed = false;
         for (NetworkProtocol.PlayerInfo p : gs.getPlayers().values()) {
-            if (p.isHost && (!p.ready || p.selectedColorKey != SERVER_COLOR_KEY)) {
+            if (p.playerId == serverId && (!p.ready || p.selectedColorKey != SERVER_COLOR_KEY)) {
                 p.ready = true;
                 p.selectedColorKey = SERVER_COLOR_KEY;
                 p.selectedCountryName = "Server";
@@ -214,7 +222,7 @@ public final class DedicatedServer {
         if (changed) broadcastLobby(gs);
         List<NetworkProtocol.PlayerInfo> g = new ArrayList<>();
         try {
-            for (NetworkProtocol.PlayerInfo p : gs.getPlayers().values()) if (!p.isHost) g.add(p);
+            for (NetworkProtocol.PlayerInfo p : gs.getPlayers().values()) if (p.playerId != serverId) g.add(p);
         } catch (java.util.ConcurrentModificationException e) {
             return; // the network thread changed the list; look again next step
         }
@@ -258,6 +266,41 @@ public final class DedicatedServer {
             }
             p.ready = true;
             log(p.playerName + " did not pick in time and plays " + p.selectedCountryName + ".");
+        }
+    }
+
+    /**
+     * The game's lobby shows "Host" next to the entry with {@code isHost}, which is the server itself
+     * (it hosts as a player named after the lobby). Players expect the one who made the lobby there,
+     * so the label moves to the creator (by name, else the first player to join) and the server's
+     * own entry is called "Server". The flag only labels entries; hosting is the server's connection.
+     */
+    private void relabelHost() {
+        GameServer gs = mp.getServer();
+        if (gs == null || serverId < 0) return;
+        try {
+            NetworkProtocol.PlayerInfo byName = null, first = null;
+            for (NetworkProtocol.PlayerInfo p : gs.getPlayers().values()) {
+                if (p.playerId == serverId) continue;
+                if (first == null || p.playerId < first.playerId) first = p;
+                if (hostPlayer != null && hostPlayer.equalsIgnoreCase(p.playerName) && (byName == null || p.playerId < byName.playerId)) byName = p;
+            }
+            NetworkProtocol.PlayerInfo creator = byName != null ? byName : first;
+            boolean changed = false;
+            for (NetworkProtocol.PlayerInfo p : gs.getPlayers().values()) {
+                boolean host = p == creator;
+                if (p.playerId == serverId && !"Server".equals(p.playerName)) {
+                    p.playerName = "Server";
+                    changed = true;
+                }
+                if (p.isHost != host) {
+                    p.isHost = host;
+                    changed = true;
+                }
+            }
+            if (changed) broadcastLobby(gs);
+        } catch (java.util.ConcurrentModificationException e) {
+            // the network thread changed the list; look again next step
         }
     }
 
@@ -324,7 +367,7 @@ public final class DedicatedServer {
         switch (cmd.toLowerCase()) {
             case "": break;
             case "help":
-                log("Commands: status, players, start (start now), speed <1|2|4|8|16>, stop (shut down)");
+                log("Commands: status, players, players <n> (start by itself at n players, 0 = only on start), start (start now), speed <1|2|4|8|16>, stop (shut down)");
                 break;
             case "status": {
                 String state = worldLoaded ? "in game, day " + GameManager.getInstance().getGameDays()
@@ -349,6 +392,18 @@ public final class DedicatedServer {
                 running = false;
                 break;
             default:
+                if (cmd.toLowerCase().startsWith("players ")) {
+                    try {
+                        int n = Integer.parseInt(cmd.substring(8).trim());
+                        if (n < 0) throw new NumberFormatException();
+                        minPlayers = n;
+                        log(n == 0 ? "The match starts when the creator starts it." : "The match starts by itself at " + n + " player(s).");
+                        maybeStart();
+                    } catch (NumberFormatException e) {
+                        log("Usage: players <number, 0 = only on start>");
+                    }
+                    break;
+                }
                 if (cmd.toLowerCase().startsWith("speed ")) {
                     try {
                         setSpeed(Integer.parseInt(cmd.substring(6).trim()));
@@ -381,7 +436,10 @@ public final class DedicatedServer {
         private int lastCount = -1;
 
         @Override
-        public void onConnected(int playerId) { log("Hosting as player #" + playerId); }
+        public void onConnected(int playerId) {
+            serverId = playerId;
+            log("Hosting as player #" + playerId);
+        }
 
         @Override
         public void onDisconnected() { log("Server connection closed."); }

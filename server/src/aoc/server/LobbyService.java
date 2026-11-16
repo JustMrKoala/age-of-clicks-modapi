@@ -33,8 +33,10 @@ import java.util.concurrent.Executors;
  * <pre>
  * GET  /api/info                 server name, scenarios, free slots
  * GET  /api/lobbies              open lobbies and matches
- * POST /api/lobbies              {"name","scenario","needed"} -> {"id","port","token"}
+ * POST /api/lobbies              {"name","scenario","needed","host"} -> {"id","port","token"}
+ *                                 needed 0 = starts only when the creator starts it; host = creator's player name
  * POST /api/lobbies/{id}/start   header X-Lobby-Token: start now (creator only)
+ * POST /api/lobbies/{id}/players header X-Lobby-Token, {"needed"}: change when it starts by itself (creator only)
  * </pre>
  */
 public final class LobbyService {
@@ -43,14 +45,16 @@ public final class LobbyService {
     private record Scenario(String path, String title, int year) {}
 
     private static final class Lobby {
-        final String id, name, token, creator;
+        final String id, name, token, creator, host;
         final Scenario scenario;
-        final int port, needed;
+        final int port;
+        volatile int needed;
         final Process process;
         final File status;
 
-        Lobby(String id, String name, Scenario scenario, int needed, int port, String token, String creator,
+        Lobby(String id, String name, String host, Scenario scenario, int needed, int port, String token, String creator,
               Process process, File status) {
+            this.host = host;
             this.id = id;
             this.name = name;
             this.scenario = scenario;
@@ -162,6 +166,8 @@ public final class LobbyService {
                 create(ex);
             } else if (method.equals("POST") && path.matches("/api/lobbies/[a-z0-9]+/start")) {
                 start(ex, path.split("/")[3]);
+            } else if (method.equals("POST") && path.matches("/api/lobbies/[a-z0-9]+/players")) {
+                players(ex, path.split("/")[3]);
             } else {
                 send(ex, 404, error("Not found"));
             }
@@ -190,7 +196,7 @@ public final class LobbyService {
                 // a status file is being replaced; show the default this time
             }
             if (s.length() > 0) s.append(',');
-            s.append("{\"id\":").append(q(l.id)).append(",\"name\":").append(q(l.name))
+            s.append("{\"id\":").append(q(l.id)).append(",\"name\":").append(q(l.name)).append(",\"host\":").append(q(l.host))
              .append(",\"scenario\":").append(q(l.scenario.title())).append(",\"port\":").append(l.port)
              .append(",\"needed\":").append(l.needed).append(",\"status\":").append(status).append('}');
         }
@@ -217,12 +223,13 @@ public final class LobbyService {
         String scenarioPath = body.getString("scenario", scenarios.get(0).path());
         Scenario scenario = scenarios.stream().filter(s -> s.path().equals(scenarioPath)).findFirst().orElse(null);
         int needed = body.getInt("needed", 2);
+        String host = clean(body.getString("host", ""), 32);
         if (scenario == null) {
             send(ex, 400, error("That scenario is not offered on this server."));
             return;
         }
-        if (needed < 1 || needed > maxPlayers) {
-            send(ex, 400, error("Players needed must be between 1 and " + maxPlayers + "."));
+        if (needed < 0 || needed > maxPlayers) {
+            send(ex, 400, error("Players needed must be between 0 and " + maxPlayers + "."));
             return;
         }
         int port = freePort();
@@ -235,13 +242,13 @@ public final class LobbyService {
         String token = Long.toString(random.nextLong() & Long.MAX_VALUE, 36) + Long.toString(random.nextLong() & Long.MAX_VALUE, 36);
         File status = new File(lobbyDir, id + ".json");
         List<String> cmd = List.of(java, "-Xmx" + memory, "-javaagent:aoc-server.jar",
-                "-Daoc.port=" + port, "-Daoc.name=" + name, "-Daoc.scenario=" + scenario.path(),
+                "-Daoc.port=" + port, "-Daoc.name=" + name, "-Daoc.scenario=" + scenario.path(), "-Daoc.host_player=" + host,
                 "-Daoc.min_players=" + needed, "-Daoc.require_ready=false", "-Daoc.idle_timeout=" + idleTimeout,
                 "-Daoc.status=" + status.getPath(), "-cp", "aoc-server.jar" + File.pathSeparator + gameJar,
                 "aoc.server.DedicatedServer", "-");
         Process proc = new ProcessBuilder(cmd).redirectErrorStream(true)
                 .redirectOutput(ProcessBuilder.Redirect.appendTo(new File(logDir, "lobby-" + id + ".log"))).start();
-        lobbies.put(id, new Lobby(id, name, scenario, needed, port, token, ip, proc, status));
+        lobbies.put(id, new Lobby(id, name, host, scenario, needed, port, token, ip, proc, status));
         lastCreate.put(ip, System.currentTimeMillis());
         DedicatedServer.log("Lobby " + id + " '" + name + "' (" + scenario.title() + ", " + needed + " players) on port "
                 + port + " for " + ip);
@@ -262,6 +269,34 @@ public final class LobbyService {
         in.write("start\n".getBytes(StandardCharsets.UTF_8));
         in.flush();
         send(ex, 200, "{\"ok\":true}");
+    }
+
+    private void players(HttpExchange ex, String id) throws Exception {
+        Lobby l = lobbies.get(id);
+        if (l == null) {
+            send(ex, 404, error("That lobby no longer exists."));
+            return;
+        }
+        if (!l.token.equals(ex.getRequestHeaders().getFirst("X-Lobby-Token"))) {
+            send(ex, 403, error("Only the player who created the lobby can change it."));
+            return;
+        }
+        int needed;
+        try {
+            needed = new JsonReader().parse(readBody(ex)).getInt("needed");
+        } catch (Exception e) {
+            send(ex, 400, error("Bad request"));
+            return;
+        }
+        if (needed < 0 || needed > maxPlayers) {
+            send(ex, 400, error("Players needed must be between 0 and " + maxPlayers + "."));
+            return;
+        }
+        l.needed = needed;
+        OutputStream in = l.process.getOutputStream();
+        in.write(("players " + needed + "\n").getBytes(StandardCharsets.UTF_8));
+        in.flush();
+        send(ex, 200, "{\"ok\":true,\"needed\":" + needed + "}");
     }
 
     // ---- helpers ----

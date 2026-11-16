@@ -24,6 +24,40 @@ public final class TestPlayer {
     /** -Daoc.pick=false: stay unpicked, like a player who is away (tests "Start without waiting"). */
     private static final boolean PICKS = !"false".equals(System.getProperty("aoc.pick"));
     private static volatile String lobbyCountry;
+    private static volatile String lobbyNames;
+    /** Snapshots seen, and country entries in them this client could not match by name (desync). */
+    private static int snapshots, unknownCountries;
+    private static java.lang.reflect.Field pendingSnapshots;
+
+    /** Looks at the snapshots waiting in the client before update() applies them. */
+    @SuppressWarnings("unchecked")
+    private static void countSnapshots(MultiplayerManager mp) {
+        try {
+            if (pendingSnapshots == null) {
+                pendingSnapshots = MultiplayerManager.class.getDeclaredField("pendingSnapshots");
+                pendingSnapshots.setAccessible(true);
+            }
+            List<ru.ius.david.cgs.multiplayer.WorldStateSnapshot> list = (List<ru.ius.david.cgs.multiplayer.WorldStateSnapshot>) pendingSnapshots.get(mp);
+            if (!loaded) return;
+            java.util.Map<String, ?> world = GameManager.getInstance().getWorldCountries();
+            synchronized (list) {
+                for (ru.ius.david.cgs.multiplayer.WorldStateSnapshot s : list) {
+                    snapshots++;
+                    if (s.renamedCountries != null && !s.renamedCountries.isEmpty()) DedicatedServer.log("Renames: " + s.renamedCountries);
+                    if (s.countries == null) continue;
+                    for (ru.ius.david.cgs.multiplayer.WorldStateSnapshot.CountrySnapshot c : s.countries) {
+                        String to = s.renamedCountries == null ? null : s.renamedCountries.get(c.name);
+                        if (!world.containsKey(c.name) && !(s.renamedCountries != null && s.renamedCountries.containsValue(c.name))
+                                && (s.newCountries == null || s.newCountries.stream().noneMatch(n -> c.name.equals(n.name)))) {
+                            if (unknownCountries++ < 5) DedicatedServer.log("Snapshot country unknown here: " + c.name);
+                        }
+                    }
+                }
+            }
+        } catch (ReflectiveOperationException e) {
+            // diagnostics only
+        }
+    }
 
     public static void main(String[] args) throws Exception {
         if (args.length < 1) {
@@ -52,6 +86,12 @@ public final class TestPlayer {
                 DedicatedServer.log("Lobby: " + (s.players == null ? 0 : s.players.size()) + " in lobby incl. host, scenario "
                         + s.scenarioPath + (s.gameStarted ? ", started" : ""));
                 if (s.players == null) return;
+                StringBuilder who = new StringBuilder();
+                for (NetworkProtocol.PlayerInfo p : s.players) who.append(who.length() == 0 ? "" : ", ").append(p.playerName).append(p.isHost ? " (host)" : "");
+                if (!who.toString().equals(lobbyNames)) {
+                    lobbyNames = who.toString();
+                    DedicatedServer.log("Lobby entries: " + lobbyNames);
+                }
                 for (NetworkProtocol.PlayerInfo p : s.players) {
                     if (p.playerId != mp.getLocalPlayerId() || p.selectedCountryName == null || p.selectedCountryName.equals(lobbyCountry)) continue;
                     lobbyCountry = p.selectedCountryName;
@@ -86,6 +126,9 @@ public final class TestPlayer {
                         int key = gm.getWarManager().getColorKeyByName(pick);
                         mp.selectCountry(key);
                         mp.setReady(true);
+                        // The game's MapScreen does this when the pick menu closes; headless we do it here.
+                        gm.setPlayerCountryByName(pick);
+                        gm.getWarManager().setPlayerCountry(key);
                         DedicatedServer.log("Picked " + pick + " and pressed Ready");
                     } catch (Throwable t) {
                         DedicatedServer.log("World load FAILED: " + t);
@@ -114,6 +157,7 @@ public final class TestPlayer {
         int firstDay = -1, lastDay = -1;
         long nextReport = 0;
         while (!hostLost) {
+            countSnapshots(mp);
             mp.update(0.05f);
             Thread.sleep(50);
             long now = System.currentTimeMillis();
@@ -133,15 +177,19 @@ public final class TestPlayer {
                 if (firstDay < 0) firstDay = day;
                 lastDay = day;
                 if (now >= nextReport) {
-                    DedicatedServer.log("day " + day + ", speed x" + GameManager.getInstance().getPlaySpeed());
+                    GameManager g = GameManager.getInstance();
+                    ru.ius.david.cgs.game.CountryState me = g.getPlayerCountry();
+                    DedicatedServer.log("day " + day + ", speed x" + g.getPlaySpeed() + ", snapshots " + snapshots
+                            + (me == null ? ", no country" : ", " + me.getName() + " gold " + me.getGold())
+                            + ", unmatched countries in snapshots " + unknownCountries);
                     nextReport = now + 10_000;
                 }
                 if (now >= playUntil) break;
             }
         }
-        boolean pass = !hostLost && loaded && lastDay > firstDay;
+        boolean pass = !hostLost && loaded && lastDay > firstDay && unknownCountries == 0;
         DedicatedServer.log("RESULT: " + (pass ? "PASS" : "FAIL") + " - connected, game started, days " + firstDay + " -> " + lastDay
-                + (hostLost ? ", host lost" : ""));
+                + ", " + snapshots + " snapshots, " + unknownCountries + " unmatched countries" + (hostLost ? ", host lost" : ""));
         mp.shutdown();
         System.exit(pass ? 0 : 1);
     }

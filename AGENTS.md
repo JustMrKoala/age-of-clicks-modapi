@@ -277,10 +277,29 @@ from the nearest towns when none is known. Never key towns by name alone.
   filter: `originalPixels > 0` and a name), marks it ready and rebroadcasts the lobby;
   `GameServer.ensurePlayersRegistered` registers it, and the client's MapScreen takes its colour key
   from the lobby state ("BUG-10 fix" path). Custom maps must exist on every client.
-- Bandwidth: the game sends a FULL world snapshot to every player every second (about 2 MB on
-  Modern World) and KryoNet kills the match when a 4 MB buffer fills. `NetGuard` throttles
-  snapshots (`aoc.snapshot_seconds`=5), skips backed up connections and closes failing ones;
-  buffers are 16 MB on both sides.
+- Clients simulate NOTHING: `GameManager.tickInner` returns at once when `networkMode` is on and
+  `isHostInMultiplayer` is off. Gold, days, names, flags and borders all come from the server's
+  `WorldStateSnapshot`, one per server tick. Most of it is the full current state, but
+  `renamedCountries`, `newCountries`, `territoryDeltas`, `navalTerritoryDeltas` and `bulkTransfers`
+  are only in the snapshot of the tick they happened (`pendingRenames` etc. are cleared when a
+  snapshot is made). Clients key countries by name, so one lost rename stops every later update of
+  that country, gold included. That was the first real match's "nothing happens" (2026-11-16, logs
+  `lobby-tqdnmf` / `lobby-hc7pls`): `NetGuard` sent only every fifth snapshot.
+- Bandwidth: a snapshot is about 2 MB on Modern World, and KryoNet kills the match when a 4 MB
+  buffer fills. `NetGuard` now sends every snapshot (`aoc.snapshot_seconds`, default 0) unless that
+  connection still has more than 1/8 of its buffer queued; a skipped snapshot's one-time parts are
+  kept per player (`NetGuard.Missed`: renames combined in order, new countries and border changes
+  appended, one full border sync instead once the backlog passes 300k changes) and go out with
+  that player's next snapshot. Failing connections are closed, buffers are 16 MB on both sides,
+  and the match log gets a "Snapshots last minute" line per player (sent, skipped, size).
+- Host label and player count: the server hosts as a player, and the game's lobby shows "Host" at
+  the entry with `PlayerInfo.isHost` (a label only; the pick menu also reads it for observers).
+  `DedicatedServer.relabelHost` moves it to the creator (`aoc.host_player`, sent as `host` on
+  create, else the first player to join) and calls its own entry "Server"; it finds its own entry
+  by `serverId` (the id from `onConnected`), not by `isHost`. Players needed can be 0 (start only
+  on the creator's button) and the creator changes it in the lobby panel (- / +):
+  `POST /api/lobbies/{id}/players` with the token, which the lobby service passes on as the
+  match console command `players <n>`.
 - Status: in game (self-test, one real client plus a headless player) the start panel shows, the
   early start works, and after picking a country and pressing Ready the client leaves the pick menu
   and plays. Headless: the clock holds at day 1 while a guest has not picked, and "Start without

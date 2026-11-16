@@ -57,19 +57,26 @@ final class MultiplayerTestWindow {
     private final Label lobbyStatus = new Label(MultiplayerTestWindow::lobbyStatusText).font(Theme.Font.SMALL).center();
     private final Button startButton = new Button(() -> inCentralLobby() ? "Start the match now" : "Start without waiting")
             .primary().onClick(this::startCreatedLobby);
+    /** The creator's player count in the lobby: when the match starts by itself. */
+    private static volatile int createdNeeded;
+    private final Panel neededRow = Panel.row().gap(8).height(34).add(
+            new Button("-").width(44).tooltip("Start by itself with fewer players").onClick(() -> changeNeeded(-1)),
+            new Label(() -> neededText(createdNeeded)).center().flex(1),
+            new Button("+").width(44).tooltip("Wait for more players").onClick(() -> changeNeeded(1)));
 
     MultiplayerTestWindow(Ui ui) {
         this.ui = ui;
         // Over the game's lobby screen: who is here, and the creator's start button (the game's own
         // Start button belongs to the host, which is the match server).
         ui.addHud(Panel.column().background(Panel.Background.CARD).padding(10).gap(8).width(560)
-                        .add(lobbyStatus, startButton),
+                        .add(lobbyStatus, neededRow, startButton),
                 Ui.Anchor.TOP_CENTER, 0, 20, this::showLobbyPanel);
     }
 
     boolean showLobbyPanel() {
         boolean inLobby = inCentralLobby(), canStart = canStartOwnLobby();
         lobbyStatus.visible(inLobby);
+        neededRow.visible(inLobby && canStart);
         startButton.visible(canStart);
         return inLobby || canStart;
     }
@@ -109,9 +116,10 @@ final class MultiplayerTestWindow {
 
         list = new ListView<CentralServer.Lobby>()
                 .items(() -> lobbies)
-                .label(l -> l.name() + "  -  " + l.scenario())
+                .label(l -> l.name() + "  -  " + l.scenario() + (l.host().isEmpty() ? "" : "  (host " + l.host() + ")"))
                 .note(l -> l.started() ? new ListView.Note("playing, day " + l.day(), Theme.textMuted())
-                        : new ListView.Note(l.players() + " / " + l.needed() + " players", l.players() > 0 ? Theme.good() : Theme.textMuted()))
+                        : new ListView.Note(l.needed() > 0 ? l.players() + " / " + l.needed() + " players"
+                                : l.players() + (l.players() == 1 ? " player" : " players"), l.players() > 0 ? Theme.good() : Theme.textMuted()))
                 .flex(1);
         Label header = new Label(() -> info == null ? "Connecting to the central server..."
                 : "Online lobbies on " + info.name() + "  (" + info.free() + " free)").font(Theme.Font.LARGE);
@@ -128,9 +136,9 @@ final class MultiplayerTestWindow {
                 .label(CentralServer.Scenario::title)
                 .rowHeight(26)
                 .flex(1);
-        Button players = new Button(() -> "Starts by itself at " + needed + (needed == 1 ? " player" : " players"))
-                .tooltip("The match starts when this many players have joined. As the creator you can also start it earlier from the lobby screen.")
-                .onClick(() -> needed = needed >= (info == null ? 8 : info.maxPlayers()) ? 1 : needed + 1);
+        Button players = new Button(() -> neededText(needed))
+                .tooltip("Click to change. The match can start by itself once this many players are in, or only when you press Start. You can change it in the lobby too, and start earlier there.")
+                .onClick(() -> needed = needed >= maxPlayers() ? 0 : needed + 1);
         address = new TextField().placeholder("Address, e.g. 192.168.1.20").maxLength(64).onSubmit(t -> joinAddress());
         Panel right = Panel.column().gap(8).width(340).add(
                 new Label("Your name").font(Theme.Font.SMALL), name,
@@ -177,7 +185,8 @@ final class MultiplayerTestWindow {
         String title = lobbyName.text().trim().isEmpty() ? name.text().trim() + "'s lobby" : lobbyName.text().trim();
         setStatus("Creating the lobby...", false);
         CentralServer s = server;
-        s.create(title, scenario, needed).whenComplete((c, err) -> Gdx.app.postRunnable(() -> {
+        int count = needed;
+        s.create(title, scenario, count, name.text().trim()).whenComplete((c, err) -> Gdx.app.postRunnable(() -> {
             if (err != null) {
                 setStatus(reason(err), true);
                 return;
@@ -186,6 +195,7 @@ final class MultiplayerTestWindow {
             createdId = c.id();
             createdToken = c.token();
             createdPort = c.port();
+            createdNeeded = count;
             // The match server needs a moment to load before it accepts players.
             new Thread(() -> {
                 try {
@@ -412,8 +422,31 @@ final class MultiplayerTestWindow {
                 : "The player who created it can start it earlier.";
         if (l == null) return "Online lobby on the central server. " + early;
         String count = l.players() + (l.players() == 1 ? " player is" : " players are") + " here";
+        if (l.needed() <= 0) return count + ". " + (creator ? "Press Start when everyone you expect is here." : "The match starts when its creator starts it.");
         if (l.players() >= l.needed()) return count + ". The match is starting...";
         return count + "; the match starts by itself at " + l.needed() + ". " + early;
+    }
+
+    private int maxPlayers() { return info == null ? 8 : info.maxPlayers(); }
+
+    static String neededText(int n) {
+        return n <= 0 ? "Starts only when you press Start" : "Starts by itself at " + n + (n == 1 ? " player" : " players");
+    }
+
+    /** Creator, in the lobby: start by itself with one player fewer or more (0 = only on Start). */
+    private void changeNeeded(int step) {
+        CentralServer s = createdServer;
+        if (s == null || createdId == null) return;
+        int n = Math.max(0, Math.min(maxPlayers(), createdNeeded + step));
+        if (n == createdNeeded) return;
+        int before = createdNeeded;
+        createdNeeded = n;
+        s.setNeeded(createdId, createdToken, n).whenComplete((v, err) -> {
+            if (err == null) return;
+            createdNeeded = before;
+            Log.error("Changing the player count failed", err);
+            ui.toast("Could not change the player count: " + reason(err), 6);
+        });
     }
 
     static boolean pickingCountries() {

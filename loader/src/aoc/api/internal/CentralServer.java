@@ -19,7 +19,8 @@ final class CentralServer {
 
     record Info(String name, List<Scenario> scenarios, int free, int maxPlayers) {}
 
-    record Lobby(String id, String name, String scenario, int port, int needed, int players,
+    /** needed 0: the match starts only when its creator starts it. host: the creator's player name ("" if unknown). */
+    record Lobby(String id, String name, String host, String scenario, int port, int needed, int players,
                  List<String> names, boolean started, int day) {}
 
     record Created(String id, int port, String token) {}
@@ -73,7 +74,7 @@ final class CentralServer {
                 JsonValue st = l.get("status");
                 List<String> names = new ArrayList<>();
                 if (st != null && st.get("names") != null) for (JsonValue n = st.get("names").child; n != null; n = n.next) names.add(n.asString());
-                out.add(new Lobby(l.getString("id"), l.getString("name"), l.getString("scenario"), l.getInt("port"),
+                out.add(new Lobby(l.getString("id"), l.getString("name"), l.getString("host", ""), l.getString("scenario"), l.getInt("port"),
                         l.getInt("needed"), st == null ? 0 : st.getInt("players", 0), names,
                         st != null && st.getBoolean("started", false), st == null ? 0 : st.getInt("day", 0)));
             }
@@ -81,8 +82,9 @@ final class CentralServer {
         });
     }
 
-    CompletableFuture<Created> create(String name, String scenario, int needed) {
-        String body = "{\"name\":" + json(name) + ",\"scenario\":" + json(scenario) + ",\"needed\":" + needed + "}";
+    CompletableFuture<Created> create(String name, String scenario, int needed, String host) {
+        String body = "{\"name\":" + json(name) + ",\"scenario\":" + json(scenario) + ",\"needed\":" + needed
+                + ",\"host\":" + json(host) + "}";
         return send(HttpRequest.newBuilder(URI.create(base + "/lobbies")).header("Content-Type", "application/json")
                 .POST(HttpRequest.BodyPublishers.ofString(body, StandardCharsets.UTF_8)))
                 .thenApply(j -> new Created(j.getString("id"), j.getInt("port"), j.getString("token")));
@@ -91,6 +93,13 @@ final class CentralServer {
     CompletableFuture<Void> start(String id, String token) {
         return send(HttpRequest.newBuilder(URI.create(base + "/lobbies/" + id + "/start")).header("X-Lobby-Token", token)
                 .POST(HttpRequest.BodyPublishers.noBody())).thenApply(j -> null);
+    }
+
+    /** Creator only: the player count at which the match starts by itself (0 = only on start). */
+    CompletableFuture<Void> setNeeded(String id, String token, int needed) {
+        return send(HttpRequest.newBuilder(URI.create(base + "/lobbies/" + id + "/players")).header("X-Lobby-Token", token)
+                .header("Content-Type", "application/json")
+                .POST(HttpRequest.BodyPublishers.ofString("{\"needed\":" + needed + "}", StandardCharsets.UTF_8))).thenApply(j -> null);
     }
 
     private CompletableFuture<JsonValue> get(String path) {
